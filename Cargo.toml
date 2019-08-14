@@ -1,0 +1,12 @@
+[package]
+name = "sprite-studio-converter"
+version = "0.1.0"
+authors = ["Kaneyuki Hiromasa <matsugen2511@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+serde = { version = "*", features = ["derive"] }
+sprite_studio={path = "../sprite_studio/"}
+amethyst-sprite-studio={path = "../amethyst-sprite-studio/"}
+amethyst = {git = "https://github.com/amethyst/amethyst.git", features = ["vulkan"] }
+ron="*"
