@@ -61,7 +61,6 @@ pub(crate) fn make_sprite_render(
         for anim in pack.animations() {
             for pa in anim.part_animes() {
                 let render = TimeLine::<i32>::new(anim.setting().fps(), pa).sprite_render(data);
-                println!("{}/{}: {:?}", pack.name(), pa.name(), render.is_some());
                 if let Some(render) = render {
                     animations.insert(pa.name().into(), render);
                 }
@@ -69,7 +68,6 @@ pub(crate) fn make_sprite_render(
         }
         packs.insert(pack.name().into(), animations);
     }
-    println!("{:?}", packs);
     packs
 }
 

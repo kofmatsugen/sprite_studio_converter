@@ -1,8 +1,10 @@
 mod convert;
 
 use crate::convert::*;
-use amethyst::assets::Prefab;
+use amethyst::animation::AnimationHierarchyPrefab;
+use amethyst::{assets::Prefab, core::Transform};
 use amethyst_sprite_studio::SpriteAnimation;
+use log::*;
 use ron::ser::*;
 use serde::{de::DeserializeOwned, Serialize};
 use sprite_studio::*;
@@ -87,6 +89,7 @@ where
 
     if let Some(pack) = project_data.packs().next() {
         let mut prefab = Prefab::<SpriteAnimation>::new();
+
         for part in pack.parts() {
             let pack_name: String = pack.name().into();
             let part_name: String = part.name().into();
@@ -95,7 +98,6 @@ where
                 .as_ref()
                 .join("sprite_sheet")
                 .join(pack_name + ".ron");
-            println!("sheet: {:?}", sheet_path);
             let sheet = file_to_data(sheet_path);
 
             let cell_path = dir_path
@@ -103,34 +105,34 @@ where
                 .join("sprite_render")
                 .join(pack.name())
                 .join(part_name + ".ron");
-            println!("cell: {:?}", cell_path);
             let cell = file_to_data(cell_path);
 
-            println!("{}: {:?}, {:?}", part.name(), sheet.is_ok(), cell.is_ok());
-
-            match (sheet, cell) {
+            let mut animation = match (sheet, cell) {
                 (Ok(sheet), Ok(cell)) => {
-                    let animation = SpriteAnimation::new(Some(sheet), Some(cell));
-                    if part.parent() < 0 {
-                        prefab.add(None, animation.into());
-                    } else {
-                        prefab.add((part.parent() as usize).into(), animation.into());
-                    }
+                    SpriteAnimation::new(Some(sheet), Some(cell), Transform::default())
                 }
-                (_, _) => {
-                    let animation = SpriteAnimation::new(None, None);
-                    if part.parent() < 0 {
-                        prefab.add(None, animation.into());
-                    } else {
-                        prefab.add((part.parent() as usize).into(), animation.into());
-                    }
-                }
+                (_, _) => SpriteAnimation::new(None, None, Transform::default()),
+            };
+            if part.index() == 0 {
+                let pack_name: String = pack.name().into();
+
+                let hierarchy_path = dir_path.as_ref().join("hierarchy").join(pack_name + ".ron");
+                let transform_hierarchy: AnimationHierarchyPrefab<Transform> =
+                    file_to_data(&hierarchy_path)?;
+                animation.set_transform_hierarchy(transform_hierarchy);
+                info!("main part: {}", part.index());
+                prefab.main(animation.into());
+            } else if part.parent() < 0 {
+                info!("non parent part: {}", part.index());
+                prefab.add(None, animation.into());
+            } else {
+                info!("parent[{}] part: {}", part.parent(), part.index());
+                prefab.add((part.parent() as usize).into(), animation.into());
             }
         }
         let converted_path = dir_path.as_ref().join("project");
         std::fs::create_dir_all(&converted_path)?;
         let converted_path = converted_path.join("test.ron");
-        println!("{:?}", converted_path);
         let file = std::fs::File::create(converted_path)?;
         let string = data_to_string(prefab)?;
         let mut buff = BufWriter::new(file);
