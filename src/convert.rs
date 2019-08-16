@@ -100,14 +100,18 @@ pub(crate) fn make_transform_animations(
                     .get_part_by_name(pa.name())
                     .map(|part| part.index() as usize)
                     .expect(&format!("not exist {}", pa.name()));
-                animation.samplers.push((
-                    part,
-                    TransformChannel::Translation,
-                    timeline.positions(),
-                ));
-                animation
-                    .samplers
-                    .push((part, TransformChannel::Rotation, timeline.rotations()));
+                let position = timeline.positions();
+                if position.output.len() > 0 {
+                    animation
+                        .samplers
+                        .push((part, TransformChannel::Translation, position));
+                }
+                let rotations = timeline.rotations();
+                if rotations.output.len() > 0 {
+                    animation
+                        .samplers
+                        .push((part, TransformChannel::Rotation, rotations));
+                }
             }
             animations.insert(anim.name().into(), animation);
         }
