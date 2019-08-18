@@ -1,8 +1,7 @@
-
 use crate::prefab::*;
 use amethyst::animation::AnimationHierarchyPrefab;
 use amethyst::{assets::Prefab, core::Transform};
-use amethyst_sprite_studio::SpriteAnimation;
+use amethyst_sprite_studio::prefab::SpriteAnimation;
 use log::*;
 use ron::ser::*;
 use serde::{de::DeserializeOwned, Serialize};
