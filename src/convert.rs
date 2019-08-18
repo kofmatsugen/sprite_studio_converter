@@ -1,163 +1,163 @@
-mod key_frame;
 
-use amethyst::animation::{
-    AnimationHierarchyPrefab, AnimationPrefab, SpriteRenderChannel, TransformChannel,
-};
-use amethyst::core::Transform;
-use amethyst::renderer::{
-    formats::texture::TexturePrefab,
-    sprite::{
-        prefab::{SpriteRenderPrefab, SpriteSheetPrefab},
-        SpriteList, SpritePosition, SpriteRender, Sprites,
-    },
-    ImageFormat,
-};
-use key_frame::*;
+use crate::prefab::*;
+use amethyst::animation::AnimationHierarchyPrefab;
+use amethyst::{assets::Prefab, core::Transform};
+use amethyst_sprite_studio::SpriteAnimation;
+use log::*;
+use ron::ser::*;
+use serde::{de::DeserializeOwned, Serialize};
 use sprite_studio::*;
-use std::collections::BTreeMap;
+use std::io::{BufReader, BufWriter, Write};
 
-pub(crate) fn make_sprite_sheets(data: &SpriteStudioData) -> BTreeMap<String, SpriteSheetPrefab> {
-    let mut sprite_sheets = BTreeMap::new();
-    for cell_map in data.cell_maps() {
-        let sprites = make_sprite_sheet(cell_map);
-        sprite_sheets.insert(cell_map.name().into(), sprites);
-    }
-    sprite_sheets
-}
+pub fn convert_to_file<P>(
+    dir_path: P,
+    project_path: P,
+) -> std::result::Result<(), Box<std::error::Error>>
+where
+    P: AsRef<std::path::Path>,
+{
+    std::fs::create_dir_all(dir_path.as_ref())?;
 
-pub(crate) fn make_sprite_renders(
-    data: &SpriteStudioData,
-) -> BTreeMap<String, BTreeMap<String, AnimationPrefab<SpriteRender>>> {
-    let mut packs = BTreeMap::new();
-    for pack in data.packs() {
-        let mut animations = BTreeMap::new();
-        for anim in pack.animations() {
-            let mut animation = AnimationPrefab::default();
-            for pa in anim.part_animes() {
-                let timeline = TimeLine::<i32>::new(anim.setting().fps(), pa);
-                let part = pack
-                    .get_part_by_name(pa.name())
-                    .map(|part| part.index() as usize)
-                    .expect(&format!("not exist {}", pa.name()));
-                animation.samplers.push((
-                    part,
-                    SpriteRenderChannel::SpriteIndex,
-                    timeline.sprite_renders(data),
-                ));
-            }
-            animations.insert(anim.name().into(), animation);
+    let project_data = load_project(project_path)?;
+
+    let sprite_sheet_dir = dir_path.as_ref().join("sprite_sheet");
+    let transform_dir = dir_path.as_ref().join("transform");
+    let sprite_render_animation_dir = dir_path.as_ref().join("sprite_render_animation");
+    let sprite_render_dir = dir_path.as_ref().join("sprite_render");
+    let proj_path = dir_path.as_ref().join("project");
+    let hierarchy_dir = dir_path.as_ref().join("hierarchy");
+    std::fs::create_dir_all(&transform_dir)?;
+    std::fs::create_dir_all(&sprite_sheet_dir)?;
+    std::fs::create_dir_all(&sprite_render_animation_dir)?;
+    std::fs::create_dir_all(&sprite_render_dir)?;
+    std::fs::create_dir_all(&hierarchy_dir)?;
+    std::fs::create_dir_all(&proj_path)?;
+
+    // transform animation
+    for (pack, animations) in make_transform_animations(&project_data) {
+        let transform_dir = transform_dir.join(pack);
+        std::fs::create_dir_all(&transform_dir)?;
+        for (name, animation) in animations {
+            let converted_path = transform_dir.join(name + ".ron");
+            data_to_file(animation, converted_path)?
         }
-        packs.insert(pack.name().into(), animations);
     }
-    packs
-}
 
-pub(crate) fn make_sprite_render(
-    data: &SpriteStudioData,
-) -> BTreeMap<String, BTreeMap<String, SpriteRenderPrefab>> {
-    let mut packs = BTreeMap::new();
-    for pack in data.packs() {
-        let mut animations = BTreeMap::new();
-        for anim in pack.animations() {
-            for pa in anim.part_animes() {
-                let render = TimeLine::<i32>::new(anim.setting().fps(), pa).sprite_render(data);
-                if let Some(render) = render {
-                    animations.insert(pa.name().into(), render);
-                }
-            }
+    // sprite sheets
+    for (name, sheet) in make_sprite_sheets(&project_data) {
+        let converted_path = sprite_sheet_dir.join(name + ".ron");
+        data_to_file(sheet, converted_path)?
+    }
+
+    // sprite renders
+    for (pack, renders) in make_sprite_renders(&project_data) {
+        let transform_dir = sprite_render_animation_dir.join(pack);
+        std::fs::create_dir_all(&transform_dir)?;
+        for (name, render) in renders {
+            let converted_path = transform_dir.join(name + ".ron");
+            data_to_file(render, converted_path)?
         }
-        packs.insert(pack.name().into(), animations);
     }
-    packs
-}
 
-pub(crate) fn make_animation_hierarchy(
-    data: &SpriteStudioData,
-) -> BTreeMap<String, AnimationHierarchyPrefab<Transform>> {
-    let mut hierarchies = BTreeMap::new();
-    for pack in data.packs() {
-        let mut hierarchy = AnimationHierarchyPrefab::default();
+    // sprite render
+    for (pack, renders) in make_sprite_render(&project_data) {
+        let sprite_render_dir = sprite_render_dir.join(pack);
+        std::fs::create_dir_all(&sprite_render_dir)?;
+        for (name, render) in renders {
+            let converted_path = sprite_render_dir.join(name + ".ron");
+            data_to_file(render, converted_path)?
+        }
+    }
+
+    // animation hierarchy
+    for (name, hierarchy) in make_animation_hierarchy(&project_data) {
+        let converted_path = hierarchy_dir.join(name + ".ron");
+        data_to_file(hierarchy, converted_path)?
+    }
+
+    // project prefab
+    if let Some(pack) = project_data.packs().next() {
+        let mut prefab = Prefab::<SpriteAnimation>::new();
+
+        let pack_name: String = pack.name().into();
         for part in pack.parts() {
-            let part_index = part.index() as usize;
-            hierarchy.nodes.push((part_index, part_index));
-        }
-        hierarchies.insert(pack.name().into(), hierarchy);
-    }
-    hierarchies
-}
+            let part_name: String = part.name().into();
 
-pub(crate) fn make_transform_animations(
-    data: &SpriteStudioData,
-) -> BTreeMap<String, BTreeMap<String, AnimationPrefab<Transform>>> {
-    let mut packs = BTreeMap::new();
-    for pack in data.packs() {
-        let mut animations = BTreeMap::new();
-        for anim in pack.animations() {
-            let mut animation = AnimationPrefab::default();
-            for pa in anim.part_animes() {
-                let timeline = TimeLine::<i32>::new(anim.setting().fps(), pa);
-                let part = pack
-                    .get_part_by_name(pa.name())
-                    .map(|part| part.index() as usize)
-                    .expect(&format!("not exist {}", pa.name()));
-                let position = timeline.positions();
-                if position.output.len() > 0 {
-                    animation
-                        .samplers
-                        .push((part, TransformChannel::Translation, position));
+            let sheet_path = sprite_sheet_dir.join(pack_name.clone() + ".ron");
+            let sheet = file_to_data(sheet_path);
+
+            let cell_path = sprite_render_dir
+                .join(&pack_name)
+                .join(part_name.clone() + ".ron");
+            let cell = file_to_data(cell_path);
+
+            let mut animation = match (sheet, cell) {
+                (Ok(sheet), Ok(cell)) => {
+                    SpriteAnimation::new(Some(sheet), Some(cell), Transform::default())
                 }
-                let rotations = timeline.rotations();
-                if rotations.output.len() > 0 {
-                    animation
-                        .samplers
-                        .push((part, TransformChannel::Rotation, rotations));
+                (_, _) => SpriteAnimation::new(None, None, Transform::default()),
+            };
+            if part.index() == 0 {
+                let hierarchy_path = hierarchy_dir.join(pack_name.clone() + ".ron");
+                let transform_hierarchy: AnimationHierarchyPrefab<Transform> =
+                    file_to_data(&hierarchy_path)?;
+                animation.set_transform_hierarchy(transform_hierarchy);
+
+                let transform_animation_dir = transform_dir.join(pack_name.clone());
+                for anims in pack.animations() {
+                    let anim_name: String = anims.name().into();
+                    let animation_path = transform_animation_dir.join(anim_name + ".ron");
+                    let transform_animation = file_to_data(animation_path)?;
+                    animation.add_transform_animation(transform_animation);
                 }
+
+                info!("main part: {}", part.index());
+                prefab.main(animation.into());
+            } else if part.parent() < 0 {
+                info!("non parent part: {}", part.index());
+                prefab.add(None, animation.into());
+            } else {
+                info!("parent[{}] part: {}", part.parent(), part.index());
+                prefab.add((part.parent() as usize).into(), animation.into());
             }
-            animations.insert(anim.name().into(), animation);
         }
-        packs.insert(pack.name().into(), animations);
+        let converted_path = proj_path.join("test.ron");
+        data_to_file(prefab, converted_path)?
     }
-    packs
+
+    Ok(())
 }
 
-fn make_sprite_sheet(cell_map: &AnimationCells) -> SpriteSheetPrefab {
-    let mut sprites = vec![];
-    for cell in cell_map.cells() {
-        let (x, y) = cell.position();
-        let (x, y) = (x as u32, y as u32);
-        let (width, height) = cell.size();
-        let (width, height) = (width as u32, height as u32);
-        let (pivot_x, pivot_y) = cell.pivot();
-        let flip_horizontal = false;
-        let flip_vertical = false;
-        let sprite = SpritePosition {
-            x,
-            y,
-            width,
-            height,
-            flip_horizontal,
-            flip_vertical,
-            offsets: Some([pivot_x, pivot_y]),
-        };
-        sprites.push(sprite);
-    }
+fn data_to_file<S, P>(data: S, path: P) -> std::result::Result<(), Box<std::error::Error>>
+where
+    S: Serialize,
+    P: AsRef<std::path::Path> + std::fmt::Debug,
+{
+    let config = PrettyConfig {
+        depth_limit: std::usize::MAX,
+        new_line: "\n".into(),
+        indentor: "\t".into(),
+        separate_tuple_members: true,
+        enumerate_arrays: true,
+    };
+    info!("save: {:?}", path);
+    let string = ron::ser::to_string_pretty(&data, config)?;
+    let file = std::fs::File::create(path)?;
+    let mut buff = BufWriter::new(file);
+    buff.write(string.as_bytes())?;
+    Ok(())
+}
 
-    let (texture_width, texture_height) = cell_map.pixel_size();
-    let (texture_width, texture_height) = (texture_width as u32, texture_height as u32);
-    let sprites = vec![Sprites::List(SpriteList {
-        texture_width,
-        texture_height,
-        sprites,
-    })];
-
-    let texture_prefab = TexturePrefab::File(
-        cell_map.image_path().into(),
-        Box::new(ImageFormat::default()),
-    );
-
-    SpriteSheetPrefab::Sheet {
-        texture: texture_prefab,
-        sprites: sprites,
-        name: Some(cell_map.name().into()),
-    }
+fn file_to_data<D: DeserializeOwned, P>(path: P) -> std::result::Result<D, Box<std::error::Error>>
+where
+    P: AsRef<std::path::Path> + std::fmt::Debug,
+{
+    info!("load: {:?}", path);
+    let path = path.as_ref();
+    let file = std::fs::File::open(path)?;
+    let buf_reader = BufReader::new(file);
+    let data = ron::de::from_reader(buf_reader);
+    info!("\t{}", if data.is_ok() { "success" } else { "failed" });
+    let data = data?;
+    Ok(data)
 }
