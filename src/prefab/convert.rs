@@ -1,4 +1,5 @@
 use crate::prefab::*;
+use crate::test;
 use amethyst::animation::AnimationHierarchyPrefab;
 use amethyst::{assets::Prefab, core::Transform};
 use amethyst_sprite_studio::prefab::SpriteAnimation;
@@ -17,7 +18,10 @@ where
 {
     std::fs::create_dir_all(dir_path.as_ref())?;
 
+    println!("{:?}", std::env::current_dir());
+    println!("{:?}", project_path.as_ref());
     let project_data = load_project(project_path)?;
+    test(&project_data);
 
     let sprite_sheet_dir = dir_path.as_ref().join("sprite_sheet");
     let transform_dir = dir_path.as_ref().join("transform");

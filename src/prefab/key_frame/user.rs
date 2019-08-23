@@ -19,7 +19,7 @@ pub(crate) fn build_users<U: From<i32>>(
     v: &ValueType,
 ) -> UserBuilder<U> {
     match v {
-        &ValueType::Simple(v) => builder.paramater = U::from(v as i32).into(),
+        &ValueType::Integer(v) => builder.paramater = U::from(v as i32).into(),
         _ => {}
     }
     builder

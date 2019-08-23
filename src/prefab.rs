@@ -1,4 +1,7 @@
+mod convert;
 mod key_frame;
+
+pub use self::convert::convert_to_file;
 
 use amethyst::animation::{
     AnimationHierarchyPrefab, AnimationPrefab, SpriteRenderChannel, TransformChannel,
