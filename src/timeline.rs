@@ -4,9 +4,15 @@ use amethyst_sprite_studio::timeline::{FromUser, TimeLine, TimeLineBuilder};
 use interpolate::*;
 use sprite_studio::{AttributeTag, Interpolation, KeyValue, PartAnime, ValueType};
 
-pub(crate) fn part_anime_to_timeline<'de, U>(frame_count: usize, part_anime: &PartAnime) -> TimeLine<U>
+pub(crate) fn part_anime_to_timeline<'de, U, P>(
+    frame_count: usize,
+    part_anime: &PartAnime,
+    id: usize,
+    parent: P,
+) -> TimeLine<U>
 where
     U: FromUser + serde::Serialize + serde::Deserialize<'de>,
+    P: Into<Option<usize>>,
 {
     let mut builder = TimeLineBuilder::new(frame_count);
 
@@ -43,7 +49,7 @@ where
         }
     }
 
-    builder.build()
+    builder.build(id, parent)
 }
 
 fn append_user_keys<'a, I, F>(builder: &mut TimeLineBuilder, add_key_fn: F, values: I)
