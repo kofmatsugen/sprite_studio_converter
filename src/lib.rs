@@ -1,6 +1,7 @@
 pub mod sprite_sheet;
 pub mod timeline;
 
+use amethyst_sprite_studio::timeline::SpriteAnimation;
 use log::*;
 use ron::ser::*;
 use serde::Serialize;
@@ -63,10 +64,10 @@ fn convert_to_sprite_animation(
         for part in pack.parts() {
             pack_index.insert(part.name(), part);
         }
-        let mut animations = vec![];
-        for anim in pack.animations() {
+        for (idx, anim) in pack.animations().enumerate() {
             info!("\t{}", anim.name());
             let count = anim.setting().count() as usize;
+            let mut animations = SpriteAnimation::default();
             for pa in anim.part_animes() {
                 let id = pack_index[pa.name()].index() as usize;
                 let parent = if pack_index[pa.name()].parent() < 0 {
@@ -75,12 +76,11 @@ fn convert_to_sprite_animation(
                     Some(pack_index[pa.name()].parent() as usize)
                 };
                 let tl = timeline::part_anime_to_timeline::<(), _>(count, pa, id, parent);
-                animations.push(tl);
+                animations.add_timeline(tl);
             }
+            let animation_path = animation_dir.join(format!("animation{:03}.anim.ron", idx));
+            data_to_file(animations, animation_path)?;
         }
-
-        let animation_path = animation_dir.join(format!("{}.anim.ron", pack.name()));
-        data_to_file(animations, animation_path)?;
     }
 
     Ok(())
