@@ -70,8 +70,8 @@ fn convert_to_sprite_animation(
         for (idx, anim) in pack.animations().enumerate() {
             info!("\t{}", anim.name());
             let count = anim.setting().count() as usize;
-            let mut animations = SpriteAnimation::default();
-            animations.set_fps(anim.setting().fps());
+            let fps = anim.setting().fps();
+            let mut animations = SpriteAnimation::new(fps, count);
             for pa in anim.part_animes() {
                 let id = pack_index[pa.name()].index() as usize;
                 let parent = if pack_index[pa.name()].parent() < 0 {
