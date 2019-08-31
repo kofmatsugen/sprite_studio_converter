@@ -3,12 +3,14 @@ mod interpolate;
 use amethyst_sprite_studio::timeline::{FromUser, TimeLine, TimeLineBuilder};
 use interpolate::*;
 use sprite_studio::{AttributeTag, Interpolation, KeyValue, PartAnime, ValueType};
+use std::collections::BTreeMap;
 
 pub(crate) fn part_anime_to_timeline<'de, U, P>(
     frame_count: usize,
     part_anime: &PartAnime,
     id: usize,
     parent: P,
+    cell_name_dict: &Vec<BTreeMap<String, usize>>,
 ) -> TimeLine<U>
 where
     U: FromUser + serde::Serialize + serde::Deserialize<'de>,
@@ -45,6 +47,13 @@ where
             AttributeTag::Hide => {
                 append_bool_keys(&mut builder, TimeLineBuilder::add_visible, attr.keys())
             }
+            AttributeTag::Cell => append_step_keys(
+                &mut builder,
+                fold_cell,
+                TimeLineBuilder::add_cell,
+                attr.keys(),
+                cell_name_dict,
+            ),
             _ => {}
         }
     }
@@ -103,6 +112,37 @@ where
     }
 
     add_key_fn(builder, last_integer, last_point, last_rect, last_text);
+}
+
+fn append_step_keys<'a, I, F, F2, V, O>(
+    builder: &mut TimeLineBuilder,
+    fold_fn: F2,
+    add_key_fn: F,
+    values: I,
+    option: &O,
+) where
+    I: Iterator<Item = &'a KeyValue>,
+    F: Fn(&mut TimeLineBuilder, Option<V>) + Clone + Copy,
+    F2: Fn(Option<V>, &ValueType, &O) -> Option<V> + Clone + Copy,
+    V: Clone + Copy,
+{
+    let mut last_val = None;
+    let mut last_time = 0;
+    for kv in values {
+        let time = kv.time() as usize;
+        let mut val = None;
+        for v in kv.values() {
+            val = fold_fn(val, v, option);
+        }
+
+        for v in (0..(time - last_time)).map(|i| if i == 0 { last_val } else { None }) {
+            add_key_fn(builder, v);
+        }
+        last_time = time;
+        last_val = val;
+    }
+
+    add_key_fn(builder, last_val);
 }
 
 fn append_bool_keys<'a, I, F>(builder: &mut TimeLineBuilder, add_key_fn: F, values: I)
@@ -192,5 +232,22 @@ fn append_interpolate_key<'a, F>(
 
     for k in keys {
         add_key_fn(builder, k);
+    }
+}
+
+fn fold_cell(
+    val: Option<(usize, usize)>,
+    value_type: &ValueType,
+    cell_name_dict: &Vec<BTreeMap<String, usize>>,
+) -> Option<(usize, usize)> {
+    // sprite studio のフォーマット的に map_id => name の順なのでひとまず問題ない...
+    match value_type {
+        &ValueType::MapId(map_id) => val
+            .map(|(_, cell_index)| (map_id as usize, cell_index))
+            .or((map_id as usize, 0).into()),
+        ValueType::Name(name) => val
+            .map(|(map_id, _)| (map_id, cell_name_dict[map_id][name]))
+            .or((0, cell_name_dict[0][name]).into()),
+        _ => val,
     }
 }

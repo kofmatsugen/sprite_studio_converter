@@ -5,7 +5,8 @@ use amethyst_sprite_studio::timeline::SpriteAnimation;
 use log::*;
 use ron::ser::*;
 use serde::Serialize;
-use sprite_studio::load_project;
+use sprite_studio::{load_project, AnimationCells};
+use std::collections::BTreeMap;
 use std::io::{BufWriter, Write};
 use std::path::Path;
 
@@ -39,6 +40,7 @@ fn convert_to_sprite_animation(
     std::fs::create_dir_all(&sheet_dir)?;
     std::fs::create_dir_all(&animation_dir)?;
 
+    let mut cell_name_dict = vec![];
     for (idx, cell_map) in data.cell_maps().enumerate() {
         // スプライトの分割情報を生成
         // ファイル生成時はIDのファイル名で生成する
@@ -52,6 +54,7 @@ fn convert_to_sprite_animation(
 
         std::fs::copy(from, img_path)?;
 
+        cell_name_dict.push(make_cell_name_dict(cell_map));
         let sheet = sprite_sheet::make_sprite_sheet(cell_map);
         let sheet_path = sheet_dir.join(format!("sprite{:03}.sheet.ron", idx));
         data_to_file(sheet, sheet_path)?;
@@ -59,7 +62,7 @@ fn convert_to_sprite_animation(
 
     for pack in data.packs() {
         info!("{}", pack.name());
-        let mut pack_index = std::collections::BTreeMap::new();
+        let mut pack_index = BTreeMap::new();
         // あとでパーツをIDで管理するために名前と結びつくようにしておく
         for part in pack.parts() {
             pack_index.insert(part.name(), part);
@@ -68,6 +71,7 @@ fn convert_to_sprite_animation(
             info!("\t{}", anim.name());
             let count = anim.setting().count() as usize;
             let mut animations = SpriteAnimation::default();
+            animations.set_fps(anim.setting().fps());
             for pa in anim.part_animes() {
                 let id = pack_index[pa.name()].index() as usize;
                 let parent = if pack_index[pa.name()].parent() < 0 {
@@ -75,7 +79,13 @@ fn convert_to_sprite_animation(
                 } else {
                     Some(pack_index[pa.name()].parent() as usize)
                 };
-                let tl = timeline::part_anime_to_timeline::<(), _>(count, pa, id, parent);
+                let tl = timeline::part_anime_to_timeline::<(), _>(
+                    count,
+                    pa,
+                    id,
+                    parent,
+                    &cell_name_dict,
+                );
                 animations.add_timeline(tl);
             }
             let animation_path = animation_dir.join(format!("animation{:03}.anim.ron", idx));
@@ -107,4 +117,14 @@ where
     let mut buff = BufWriter::new(file);
     buff.write(string.as_bytes())?;
     Ok(())
+}
+
+fn make_cell_name_dict(cell_map: &AnimationCells) -> BTreeMap<String, usize> {
+    let mut cell_name_dict = BTreeMap::new();
+
+    for (idx, cell) in cell_map.cells().enumerate() {
+        cell_name_dict.insert(cell.name().into(), idx);
+    }
+
+    cell_name_dict
 }
