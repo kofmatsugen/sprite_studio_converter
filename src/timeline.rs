@@ -1,7 +1,6 @@
 mod interpolate;
 
-use amethyst::renderer::{palette::rgb::Srgba, resources::Tint};
-use amethyst_sprite_studio::timeline::{FromUser, TimeLine, TimeLineBuilder};
+use amethyst_sprite_studio::timeline::{FromUser, LinearColor, TimeLine, TimeLineBuilder};
 use interpolate::*;
 use sprite_studio::{AttributeTag, Interpolation, KeyValue, PartAnime, ValueType};
 use std::collections::BTreeMap;
@@ -55,7 +54,7 @@ where
                 attr.keys(),
                 cell_name_dict,
             ),
-            AttributeTag::Color => append_step_keys(
+            AttributeTag::Color => append_interpolate_keys(
                 &mut builder,
                 fold_color,
                 TimeLineBuilder::add_color,
@@ -120,6 +119,56 @@ where
     }
 
     add_key_fn(builder, last_integer, last_point, last_rect, last_text);
+}
+
+fn append_interpolate_keys<'a, I, F, F2, V, O>(
+    builder: &mut TimeLineBuilder,
+    fold_fn: F2,
+    add_key_fn: F,
+    values: I,
+    option: &O,
+) where
+    I: Iterator<Item = &'a KeyValue>,
+    F: Fn(&mut TimeLineBuilder, Option<V>) + Clone + Copy,
+    F2: Fn(Option<V>, &ValueType, &O) -> Option<V> + Clone + Copy,
+    V: std::ops::Mul<f32, Output = V> + std::ops::Add<V, Output = V> + Clone + std::fmt::Debug,
+{
+    let mut last_val = None;
+    let mut last_time = 0;
+    let mut interpolation = Interpolation::Step;
+    for kv in values {
+        let time = kv.time() as usize;
+        let mut val = None;
+        for v in kv.values() {
+            val = fold_fn(val, v, option);
+        }
+
+        match interpolation {
+            Interpolation::Step => {
+                for v in
+                    (0..(time - last_time)).map(|i| if i == 0 { last_val.clone() } else { None })
+                {
+                    add_key_fn(builder, v);
+                }
+            }
+            Interpolation::Linear => {
+                for v in lerp_to_vec(
+                    last_val.clone().unwrap(),
+                    val.clone().unwrap(),
+                    time - last_time,
+                ) {
+                    add_key_fn(builder, v.into());
+                }
+            }
+            _ => {}
+        }
+
+        last_time = time;
+        last_val = val;
+        interpolation = kv.interpolation();
+    }
+
+    add_key_fn(builder, last_val);
 }
 
 fn append_step_keys<'a, I, F, F2, V, O>(
@@ -260,10 +309,10 @@ fn fold_cell(
     }
 }
 
-fn fold_color(val: Option<Tint>, value_type: &ValueType, _: &()) -> Option<Tint> {
+fn fold_color(val: Option<LinearColor>, value_type: &ValueType, _: &()) -> Option<LinearColor> {
     // sprite studio のフォーマット的に map_id => name の順なのでひとまず問題ない...
     match value_type {
-        &ValueType::Color(r, g, b, a) => Some(Tint(Srgba::new(r, g, b, a))),
+        &ValueType::Color(r, g, b, a) => Some(LinearColor(r, g, b, a)),
         _ => val,
     }
 }
