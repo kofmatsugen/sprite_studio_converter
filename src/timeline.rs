@@ -1,5 +1,6 @@
 mod interpolate;
 
+use amethyst::renderer::{palette::rgb::Srgba, resources::Tint};
 use amethyst_sprite_studio::timeline::{FromUser, TimeLine, TimeLineBuilder};
 use interpolate::*;
 use sprite_studio::{AttributeTag, Interpolation, KeyValue, PartAnime, ValueType};
@@ -53,6 +54,13 @@ where
                 TimeLineBuilder::add_cell,
                 attr.keys(),
                 cell_name_dict,
+            ),
+            AttributeTag::Color => append_step_keys(
+                &mut builder,
+                fold_color,
+                TimeLineBuilder::add_color,
+                attr.keys(),
+                &(),
             ),
             _ => {}
         }
@@ -124,7 +132,7 @@ fn append_step_keys<'a, I, F, F2, V, O>(
     I: Iterator<Item = &'a KeyValue>,
     F: Fn(&mut TimeLineBuilder, Option<V>) + Clone + Copy,
     F2: Fn(Option<V>, &ValueType, &O) -> Option<V> + Clone + Copy,
-    V: Clone + Copy,
+    V: Clone,
 {
     let mut last_val = None;
     let mut last_time = 0;
@@ -135,7 +143,7 @@ fn append_step_keys<'a, I, F, F2, V, O>(
             val = fold_fn(val, v, option);
         }
 
-        for v in (0..(time - last_time)).map(|i| if i == 0 { last_val } else { None }) {
+        for v in (0..(time - last_time)).map(|i| if i == 0 { last_val.clone() } else { None }) {
             add_key_fn(builder, v);
         }
         last_time = time;
@@ -248,6 +256,14 @@ fn fold_cell(
         ValueType::Name(name) => val
             .map(|(map_id, _)| (map_id, cell_name_dict[map_id][name]))
             .or((0, cell_name_dict[0][name]).into()),
+        _ => val,
+    }
+}
+
+fn fold_color(val: Option<Tint>, value_type: &ValueType, _: &()) -> Option<Tint> {
+    // sprite studio のフォーマット的に map_id => name の順なのでひとまず問題ない...
+    match value_type {
+        &ValueType::Color(r, g, b, a) => Some(Tint(Srgba::new(r, g, b, a))),
         _ => val,
     }
 }
