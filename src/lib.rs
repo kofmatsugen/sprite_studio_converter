@@ -13,7 +13,7 @@ use std::path::Path;
 pub fn convert_to_timeline<P>(
     dir_path: P,
     project_path: P,
-) -> std::result::Result<(), Box<std::error::Error>>
+) -> std::result::Result<(), Box<dyn std::error::Error>>
 where
     P: AsRef<std::path::Path>,
 {
@@ -26,7 +26,7 @@ fn convert_to_sprite_animation(
     data: &sprite_studio::SpriteStudioData,
     project_path: &Path,
     output_dir: &Path,
-) -> std::result::Result<(), Box<std::error::Error>> {
+) -> std::result::Result<(), Box<dyn std::error::Error>> {
     let project_name = project_path.file_stem().unwrap();
     let project_dir = project_path.parent().unwrap();
 
@@ -99,7 +99,7 @@ fn convert_to_sprite_animation(
 pub(crate) fn data_to_file<S, P>(
     data: S,
     path: P,
-) -> std::result::Result<(), Box<std::error::Error>>
+) -> std::result::Result<(), Box<dyn std::error::Error>>
 where
     S: Serialize,
     P: AsRef<std::path::Path> + std::fmt::Debug,

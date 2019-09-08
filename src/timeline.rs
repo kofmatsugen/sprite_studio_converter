@@ -129,9 +129,13 @@ fn append_interpolate_keys<'a, I, F, F2, V, O>(
     option: &O,
 ) where
     I: Iterator<Item = &'a KeyValue>,
-    F: Fn(&mut TimeLineBuilder, Option<V>) + Clone + Copy,
+    F: Fn(&mut TimeLineBuilder, V) + Clone + Copy,
     F2: Fn(Option<V>, &ValueType, &O) -> Option<V> + Clone + Copy,
-    V: std::ops::Mul<f32, Output = V> + std::ops::Add<V, Output = V> + Clone + std::fmt::Debug,
+    V: std::ops::Mul<f32, Output = V>
+        + std::ops::Add<V, Output = V>
+        + Clone
+        + std::fmt::Debug
+        + Default,
 {
     let mut last_val = None;
     let mut last_time = 0;
@@ -145,10 +149,8 @@ fn append_interpolate_keys<'a, I, F, F2, V, O>(
 
         match interpolation {
             Interpolation::Step => {
-                for v in
-                    (0..(time - last_time)).map(|i| if i == 0 { last_val.clone() } else { None })
-                {
-                    add_key_fn(builder, v);
+                for v in (0..(time - last_time)).map(|_| last_val.clone()) {
+                    add_key_fn(builder, v.unwrap_or(Default::default()));
                 }
             }
             Interpolation::Linear => {
@@ -168,7 +170,7 @@ fn append_interpolate_keys<'a, I, F, F2, V, O>(
         interpolation = kv.interpolation();
     }
 
-    add_key_fn(builder, last_val);
+    add_key_fn(builder, last_val.unwrap_or(Default::default()));
 }
 
 fn append_step_keys<'a, I, F, F2, V, O>(
@@ -181,7 +183,7 @@ fn append_step_keys<'a, I, F, F2, V, O>(
     I: Iterator<Item = &'a KeyValue>,
     F: Fn(&mut TimeLineBuilder, Option<V>) + Clone + Copy,
     F2: Fn(Option<V>, &ValueType, &O) -> Option<V> + Clone + Copy,
-    V: Clone,
+    V: Clone + Default,
 {
     let mut last_val = None;
     let mut last_time = 0;
@@ -192,7 +194,7 @@ fn append_step_keys<'a, I, F, F2, V, O>(
             val = fold_fn(val, v, option);
         }
 
-        for v in (0..(time - last_time)).map(|i| if i == 0 { last_val.clone() } else { None }) {
+        for v in (0..(time - last_time)).map(|_| last_val.clone()) {
             add_key_fn(builder, v);
         }
         last_time = time;
@@ -205,7 +207,7 @@ fn append_step_keys<'a, I, F, F2, V, O>(
 fn append_bool_keys<'a, I, F>(builder: &mut TimeLineBuilder, add_key_fn: F, values: I)
 where
     I: Iterator<Item = &'a KeyValue>,
-    F: Fn(&mut TimeLineBuilder, Option<bool>) + Clone + Copy,
+    F: Fn(&mut TimeLineBuilder, bool) + Clone + Copy,
 {
     let mut last_val = true;
     let mut last_time = 0;
@@ -215,9 +217,7 @@ where
             match v {
                 &ValueType::Simple(v) => {
                     let v = (v as u32) == 0;
-                    for v in
-                        (0..(time - last_time)).map(|i| if i == 0 { Some(last_val) } else { None })
-                    {
+                    for v in (0..(time - last_time)).map(|_| last_val) {
                         add_key_fn(builder, v);
                     }
                     last_val = v;
@@ -234,7 +234,7 @@ where
 fn append_float_keys<'a, I, F>(builder: &mut TimeLineBuilder, add_key_fn: F, values: I)
 where
     I: Iterator<Item = &'a KeyValue>,
-    F: Fn(&mut TimeLineBuilder, Option<f32>) + Clone + Copy,
+    F: Fn(&mut TimeLineBuilder, f32) + Clone + Copy,
 {
     let mut last_val = 0.0;
     let mut last_time = 0;
@@ -273,7 +273,7 @@ fn append_interpolate_key<'a, F>(
     end: f32,
     length: usize,
 ) where
-    F: Fn(&mut TimeLineBuilder, Option<f32>) + Clone + Copy,
+    F: Fn(&mut TimeLineBuilder, f32) + Clone + Copy,
 {
     let keys: Vec<Option<f32>> = match interpolation {
         Interpolation::Step => (0..)
@@ -288,7 +288,7 @@ fn append_interpolate_key<'a, F>(
     };
 
     for k in keys {
-        add_key_fn(builder, k);
+        add_key_fn(builder, k.unwrap_or_default());
     }
 }
 
