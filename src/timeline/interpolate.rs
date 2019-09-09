@@ -4,12 +4,9 @@ where
 {
     let mut v = Vec::with_capacity(length);
 
-    log::info!("start: {:?}", start);
-    log::info!("end: {:?}", end);
     for i in 0..length {
         let rate = (i as f32) / (length as f32);
         let val = start.clone() * (1.0 - rate) + end.clone() * rate;
-        log::info!("{}: {:?}", rate, val);
         v.push(val);
     }
 

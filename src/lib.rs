@@ -60,8 +60,10 @@ fn convert_to_sprite_animation(
         data_to_file(sheet, sheet_path)?;
     }
 
-    for pack in data.packs() {
+    for (pack_idx, pack) in data.packs().enumerate() {
         info!("{}", pack.name());
+        let anim_pack_dir = animation_dir.join(format!("pack{:03}", pack_idx));
+        std::fs::create_dir_all(&anim_pack_dir)?;
         let mut pack_index = BTreeMap::new();
         // あとでパーツをIDで管理するために名前と結びつくようにしておく
         for part in pack.parts() {
@@ -88,7 +90,7 @@ fn convert_to_sprite_animation(
                 );
                 animations.add_timeline(tl);
             }
-            let animation_path = animation_dir.join(format!("animation{:03}.anim.ron", idx));
+            let animation_path = anim_pack_dir.join(format!("animation{:03}.anim.ron", idx));
             data_to_file(animations, animation_path)?;
         }
     }

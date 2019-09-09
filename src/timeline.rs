@@ -45,7 +45,7 @@ where
                 append_float_keys(&mut builder, TimeLineBuilder::add_rotated, attr.keys())
             }
             AttributeTag::Hide => {
-                append_bool_keys(&mut builder, TimeLineBuilder::add_visible, attr.keys())
+                append_visible_keys(&mut builder, TimeLineBuilder::add_visible, attr.keys())
             }
             AttributeTag::Cell => append_step_keys(
                 &mut builder,
@@ -204,12 +204,12 @@ fn append_step_keys<'a, I, F, F2, V, O>(
     add_key_fn(builder, last_val);
 }
 
-fn append_bool_keys<'a, I, F>(builder: &mut TimeLineBuilder, add_key_fn: F, values: I)
+fn append_visible_keys<'a, I, F>(builder: &mut TimeLineBuilder, add_key_fn: F, values: I)
 where
     I: Iterator<Item = &'a KeyValue>,
     F: Fn(&mut TimeLineBuilder, bool) + Clone + Copy,
 {
-    let mut last_val = true;
+    let mut last_val = false;
     let mut last_time = 0;
     for kv in values {
         let time = kv.time() as usize;
