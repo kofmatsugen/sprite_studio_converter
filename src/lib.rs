@@ -1,7 +1,8 @@
 pub mod sprite_sheet;
 pub mod timeline;
+mod types;
 
-use amethyst_sprite_studio::timeline::SpriteAnimation;
+use amethyst_sprite_studio::SpriteAnimation;
 use log::*;
 use ron::ser::*;
 use serde::Serialize;
@@ -73,7 +74,7 @@ fn convert_to_sprite_animation(
             info!("\t{}", anim.name());
             let count = anim.setting().count() as usize;
             let fps = anim.setting().fps();
-            let mut animations = SpriteAnimation::new(fps, count);
+            let mut animations = SpriteAnimation::<()>::new(fps, count);
             for pa in anim.part_animes() {
                 let id = pack_index[pa.name()].index() as usize;
                 let parent = if pack_index[pa.name()].parent() < 0 {
@@ -81,13 +82,12 @@ fn convert_to_sprite_animation(
                 } else {
                     Some(pack_index[pa.name()].parent() as usize)
                 };
-                let tl = timeline::part_anime_to_timeline::<(), _>(
-                    count,
-                    pa,
-                    id,
-                    parent,
-                    &cell_name_dict,
-                );
+                let tl = timeline::part_anime_to_timeline::<()>(count, pa, &cell_name_dict)
+                    .part_id(id)
+                    .parent_id(parent)
+                    .part_type(types::convert_part_type(pack_index[pa.name()].part_type()))
+                    .bounds(types::convert_bounds(pack_index[pa.name()].bounds()))
+                    .build();
                 animations.add_timeline(tl);
             }
             let animation_path = anim_pack_dir.join(format!("animation{:03}.anim.ron", idx));
