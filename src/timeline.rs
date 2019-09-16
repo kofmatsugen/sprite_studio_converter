@@ -23,27 +23,55 @@ where
             AttributeTag::User => {
                 append_user_keys(&mut builder, TimeLineBuilder::add_user, attr.keys())
             }
-            AttributeTag::Posx => {
-                append_float_keys(&mut builder, TimeLineBuilder::add_pos_x, attr.keys())
-            }
-            AttributeTag::Posy => {
-                append_float_keys(&mut builder, TimeLineBuilder::add_pos_y, attr.keys())
-            }
-            AttributeTag::Posz => {
-                append_float_keys(&mut builder, TimeLineBuilder::add_pos_z, attr.keys())
-            }
-            // AttributeTag::Prio => {
-            //     append_float_keys(&mut builder, TimeLineBuilder::add_pos_z, attr.keys())
-            // }
-            AttributeTag::Sclx => {
-                append_float_keys(&mut builder, TimeLineBuilder::add_scale_x, attr.keys())
-            }
-            AttributeTag::Scly => {
-                append_float_keys(&mut builder, TimeLineBuilder::add_scale_y, attr.keys())
-            }
-            AttributeTag::Rotz => {
-                append_float_keys(&mut builder, TimeLineBuilder::add_rotated, attr.keys())
-            }
+            AttributeTag::Posx => append_float_keys(
+                &mut builder,
+                TimeLineBuilder::add_pos_x,
+                attr.keys(),
+                0.0,
+                1.,
+            ),
+            AttributeTag::Posy => append_float_keys(
+                &mut builder,
+                TimeLineBuilder::add_pos_y,
+                attr.keys(),
+                0.0,
+                1.,
+            ),
+            AttributeTag::Posz => append_float_keys(
+                &mut builder,
+                TimeLineBuilder::add_pos_z,
+                attr.keys(),
+                0.0,
+                1.,
+            ),
+            AttributeTag::Prio => append_float_keys(
+                &mut builder,
+                TimeLineBuilder::add_pos_z,
+                attr.keys(),
+                0.0,
+                1.,
+            ),
+            AttributeTag::Sclx => append_float_keys(
+                &mut builder,
+                TimeLineBuilder::add_scale_x,
+                attr.keys(),
+                0.0,
+                1.,
+            ),
+            AttributeTag::Scly => append_float_keys(
+                &mut builder,
+                TimeLineBuilder::add_scale_y,
+                attr.keys(),
+                0.0,
+                1.,
+            ),
+            AttributeTag::Rotz => append_float_keys(
+                &mut builder,
+                TimeLineBuilder::add_rotated,
+                attr.keys(),
+                0.0,
+                1.,
+            ),
             AttributeTag::Hide => {
                 append_visible_keys(&mut builder, TimeLineBuilder::add_visible, attr.keys())
             }
@@ -61,11 +89,14 @@ where
                 attr.keys(),
                 &(),
             ),
+            AttributeTag::Alpha => append_float_keys(
+                &mut builder,
+                TimeLineBuilder::add_alpha,
+                attr.keys(),
+                1.0,
+                1.0,
+            ),
             AttributeTag::Instance => {
-                log::info!("instance!");
-                for key in attr.keys() {
-                    log::info!("\t{:?}", key);
-                }
                 append_only_keys(
                     &mut builder,
                     fold_instance,
@@ -275,12 +306,17 @@ where
     add_key_fn(builder, last_val.into());
 }
 
-fn append_float_keys<'a, I, F>(builder: &mut TimeLineBuilder, add_key_fn: F, values: I)
-where
+fn append_float_keys<'a, I, F>(
+    builder: &mut TimeLineBuilder,
+    add_key_fn: F,
+    values: I,
+    default: f32,
+    rate: f32,
+) where
     I: Iterator<Item = &'a KeyValue>,
     F: Fn(&mut TimeLineBuilder, f32) + Clone + Copy,
 {
-    let mut last_val = 0.0;
+    let mut last_val = default;
     let mut last_time = 0;
     let mut interpolation = Interpolation::Step;
     for kv in values {
@@ -297,7 +333,7 @@ where
                         v,
                         time - last_time,
                     );
-                    last_val = v;
+                    last_val = v * rate;
                 }
                 _ => {}
             }
@@ -354,7 +390,6 @@ fn fold_cell(
 }
 
 fn fold_color(val: Option<LinearColor>, value_type: &ValueType, _: &()) -> Option<LinearColor> {
-    // sprite studio のフォーマット的に map_id => name の順なのでひとまず問題ない...
     match value_type {
         &ValueType::Color(r, g, b, a) => Some(LinearColor(r, g, b, a)),
         _ => val,
