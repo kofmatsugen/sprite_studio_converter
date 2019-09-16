@@ -61,6 +61,17 @@ fn convert_to_sprite_animation(
         data_to_file(sheet, sheet_path)?;
     }
 
+    let mut pack_id_map = BTreeMap::new();
+    for (pack_idx, pack) in data.packs().enumerate() {
+        let mut anim_id_map = BTreeMap::new();
+
+        for (anim_idx, anim) in pack.animations().enumerate() {
+            anim_id_map.insert(anim.name(), anim_idx);
+        }
+        pack_id_map.insert(pack.name(), (pack_idx, anim_id_map));
+    }
+
+    // パック名とアニメーション名をIDに変換するためのBTreeMap
     for (pack_idx, pack) in data.packs().enumerate() {
         info!("{}", pack.name());
         let anim_pack_dir = animation_dir.join(format!("pack{:03}", pack_idx));
@@ -76,17 +87,30 @@ fn convert_to_sprite_animation(
             let fps = anim.setting().fps();
             let mut animations = SpriteAnimation::<()>::new(fps, count);
             for pa in anim.part_animes() {
-                let id = pack_index[pa.name()].index() as usize;
-                let parent = if pack_index[pa.name()].parent() < 0 {
+                let part = pack_index[pa.name()];
+                let id = part.index() as usize;
+                let parent = if part.parent() < 0 {
                     None
                 } else {
-                    Some(pack_index[pa.name()].parent() as usize)
+                    Some(part.parent() as usize)
                 };
+
+                let refference_animation = part.refference_animation().and_then(|(pack, anim)| {
+                    pack_id_map.get(pack).and_then(|(pack_id, anim_map)| {
+                        anim_map.get(anim).map(|anim_id| (*pack_id, *anim_id))
+                    })
+                });
+
+                let ref_pack_id = refference_animation.map(|(pack_id, _)| pack_id);
+                let ref_anim_id = refference_animation.map(|(_, anim_id)| anim_id);
+
                 let tl = timeline::part_anime_to_timeline::<()>(count, pa, &cell_name_dict)
                     .part_id(id)
                     .parent_id(parent)
-                    .part_type(types::convert_part_type(pack_index[pa.name()].part_type()))
-                    .bounds(types::convert_bounds(pack_index[pa.name()].bounds()))
+                    .part_type(types::convert_part_type(part.part_type()))
+                    .bounds(types::convert_bounds(part.bounds()))
+                    .ref_pack_id(ref_pack_id)
+                    .ref_anim_id(ref_anim_id)
                     .build();
                 animations.add_timeline(tl);
             }

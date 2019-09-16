@@ -2,7 +2,7 @@ mod interpolate;
 
 use amethyst_sprite_studio::{
     timeline::TimeLineBuilder,
-    types::{FromUser, LinearColor},
+    types::{FromUser, InstanceKeyBuilder, LinearColor},
 };
 use interpolate::*;
 use sprite_studio::{AttributeTag, Interpolation, KeyValue, PartAnime, ValueType};
@@ -61,6 +61,19 @@ where
                 attr.keys(),
                 &(),
             ),
+            AttributeTag::Instance => {
+                log::info!("instance!");
+                for key in attr.keys() {
+                    log::info!("\t{:?}", key);
+                }
+                append_only_keys(
+                    &mut builder,
+                    fold_instance,
+                    TimeLineBuilder::add_instance,
+                    attr.keys(),
+                    &(),
+                );
+            }
             _ => {}
         }
     }
@@ -173,6 +186,37 @@ fn append_interpolate_keys<'a, I, F, F2, V, O>(
     add_key_fn(builder, last_val.unwrap_or(Default::default()));
 }
 
+fn append_only_keys<'a, I, F, F2, V, O>(
+    builder: &mut TimeLineBuilder,
+    fold_fn: F2,
+    add_key_fn: F,
+    values: I,
+    option: &O,
+) where
+    I: Iterator<Item = &'a KeyValue>,
+    F: Fn(&mut TimeLineBuilder, V) + Clone + Copy,
+    F2: Fn(V, &ValueType, &O) -> V + Clone + Copy,
+    V: Clone + Default,
+{
+    let mut last_val = V::default();
+    let mut last_time = 0;
+    for kv in values {
+        let time = kv.time() as usize;
+        let mut val = V::default();
+        for v in kv.values() {
+            val = fold_fn(val, v, option);
+        }
+
+        for v in (0..(time - last_time)).map(|_| V::default()) {
+            add_key_fn(builder, v);
+        }
+        last_time = time;
+        last_val = val;
+    }
+
+    add_key_fn(builder, last_val);
+}
+
 fn append_step_keys<'a, I, F, F2, V, O>(
     builder: &mut TimeLineBuilder,
     fold_fn: F2,
@@ -181,15 +225,15 @@ fn append_step_keys<'a, I, F, F2, V, O>(
     option: &O,
 ) where
     I: Iterator<Item = &'a KeyValue>,
-    F: Fn(&mut TimeLineBuilder, Option<V>) + Clone + Copy,
-    F2: Fn(Option<V>, &ValueType, &O) -> Option<V> + Clone + Copy,
+    F: Fn(&mut TimeLineBuilder, V) + Clone + Copy,
+    F2: Fn(V, &ValueType, &O) -> V + Clone + Copy,
     V: Clone + Default,
 {
-    let mut last_val = None;
+    let mut last_val = V::default();
     let mut last_time = 0;
     for kv in values {
         let time = kv.time() as usize;
-        let mut val = None;
+        let mut val = V::default();
         for v in kv.values() {
             val = fold_fn(val, v, option);
         }
@@ -315,4 +359,23 @@ fn fold_color(val: Option<LinearColor>, value_type: &ValueType, _: &()) -> Optio
         &ValueType::Color(r, g, b, a) => Some(LinearColor(r, g, b, a)),
         _ => val,
     }
+}
+
+fn fold_instance(
+    mut val: Option<InstanceKeyBuilder>,
+    value_type: &ValueType,
+    _: &(),
+) -> Option<InstanceKeyBuilder> {
+    val = val.or(Some(Default::default()));
+    val.map(|val| match value_type {
+        &ValueType::LoopNum(loop_num) => val.loop_num(loop_num as usize),
+        &ValueType::Speed(speed) => val.speed_rate(speed),
+        &ValueType::StartOffset(offset) => val.play_frame(offset as usize),
+        &ValueType::EndOffset(offset) => val.end_offset(-offset as usize),
+        &ValueType::Infinity(infinity) => val.infinity(infinity),
+        &ValueType::Reverse(reverse) => val.reverse(reverse),
+        &ValueType::PingPong(pingpong) => val.pingpong(pingpong),
+        &ValueType::Indipendent(independent) => val.independent(independent),
+        _ => val,
+    })
 }
