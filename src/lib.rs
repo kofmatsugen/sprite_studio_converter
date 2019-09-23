@@ -134,7 +134,7 @@ where
         depth_limit: std::usize::MAX,
         new_line: "\n".into(),
         indentor: "\t".into(),
-        separate_tuple_members: true,
+        separate_tuple_members: false,
         enumerate_arrays: true,
     };
     info!("save: {:?}", path);

@@ -10,6 +10,7 @@ pub(crate) fn make_sprite_sheet(cell_map: &AnimationCells) -> SpriteList {
         let (width, height) = cell.size();
         let (width, height) = (width as u32, height as u32);
         let (pivot_x, pivot_y) = cell.pivot();
+        let (pivot_x, pivot_y) = (pivot_x * cell.size().0, pivot_y * cell.size().1);
         let flip_horizontal = false;
         let flip_vertical = false;
         let sprite = SpritePosition {

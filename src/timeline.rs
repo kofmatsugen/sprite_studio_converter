@@ -28,49 +28,49 @@ where
                 TimeLineBuilder::add_pos_x,
                 attr.keys(),
                 0.0,
-                1.,
+                |v| v,
             ),
             AttributeTag::Posy => append_float_keys(
                 &mut builder,
                 TimeLineBuilder::add_pos_y,
                 attr.keys(),
                 0.0,
-                1.,
+                |v| v,
             ),
             AttributeTag::Posz => append_float_keys(
                 &mut builder,
                 TimeLineBuilder::add_pos_z,
                 attr.keys(),
                 0.0,
-                1.,
+                |v| v,
             ),
             AttributeTag::Prio => append_float_keys(
                 &mut builder,
                 TimeLineBuilder::add_pos_z,
                 attr.keys(),
                 0.0,
-                1.,
+                |v| -v,
             ),
             AttributeTag::Sclx => append_float_keys(
                 &mut builder,
                 TimeLineBuilder::add_scale_x,
                 attr.keys(),
-                0.0,
-                1.,
+                1.0,
+                |v| v,
             ),
             AttributeTag::Scly => append_float_keys(
                 &mut builder,
                 TimeLineBuilder::add_scale_y,
                 attr.keys(),
-                0.0,
-                1.,
+                1.0,
+                |v| v,
             ),
             AttributeTag::Rotz => append_float_keys(
                 &mut builder,
                 TimeLineBuilder::add_rotated,
                 attr.keys(),
                 0.0,
-                1.,
+                |v| v.to_radians(),
             ),
             AttributeTag::Hide => {
                 append_visible_keys(&mut builder, TimeLineBuilder::add_visible, attr.keys())
@@ -94,7 +94,7 @@ where
                 TimeLineBuilder::add_alpha,
                 attr.keys(),
                 1.0,
-                1.0,
+                |v| v,
             ),
             AttributeTag::Instance => {
                 append_only_keys(
@@ -306,15 +306,16 @@ where
     add_key_fn(builder, last_val.into());
 }
 
-fn append_float_keys<'a, I, F>(
+fn append_float_keys<'a, I, F, CF>(
     builder: &mut TimeLineBuilder,
     add_key_fn: F,
     values: I,
     default: f32,
-    rate: f32,
+    convert_fn: CF,
 ) where
     I: Iterator<Item = &'a KeyValue>,
     F: Fn(&mut TimeLineBuilder, f32) + Clone + Copy,
+    CF: Fn(f32) -> f32 + Clone + Copy,
 {
     let mut last_val = default;
     let mut last_time = 0;
@@ -322,6 +323,7 @@ fn append_float_keys<'a, I, F>(
     for kv in values {
         let time = kv.time() as usize;
         let inter = kv.interpolation();
+        let mut val = default;
         for v in kv.values() {
             match v {
                 &ValueType::Simple(v) => {
@@ -332,43 +334,46 @@ fn append_float_keys<'a, I, F>(
                         last_val,
                         v,
                         time - last_time,
+                        convert_fn,
                     );
-                    last_val = v * rate;
+                    val = v;
                 }
                 _ => {}
             }
         }
+        last_val = val;
         last_time = time;
         interpolation = inter;
     }
 
-    add_key_fn(builder, last_val.into());
+    add_key_fn(builder, convert_fn(last_val));
 }
 
-fn append_interpolate_key<'a, F>(
+fn append_interpolate_key<'a, F, CF>(
     builder: &mut TimeLineBuilder,
     add_key_fn: F,
     interpolation: Interpolation,
     start: f32,
     end: f32,
     length: usize,
+    convert_fn: CF,
 ) where
     F: Fn(&mut TimeLineBuilder, f32) + Clone + Copy,
+    CF: Fn(f32) -> f32 + Clone + Copy,
 {
-    let keys: Vec<Option<f32>> = match interpolation {
+    let keys: Vec<f32> = match interpolation {
         Interpolation::Step => (0..)
-            .map(|i| if i == 0 { Some(start) } else { None })
+            .map(|_| start)
             .take(length)
             .collect(),
         Interpolation::Linear => lerp_to_vec(start, end, length)
             .into_iter()
-            .map(Some)
             .collect(),
         _ => panic!("non supported interpolation: {:?}", interpolation),
     };
 
     for k in keys {
-        add_key_fn(builder, k.unwrap_or_default());
+        add_key_fn(builder, convert_fn(k));
     }
 }
 
