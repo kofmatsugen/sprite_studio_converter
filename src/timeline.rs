@@ -362,13 +362,8 @@ fn append_interpolate_key<'a, F, CF>(
     CF: Fn(f32) -> f32 + Clone + Copy,
 {
     let keys: Vec<f32> = match interpolation {
-        Interpolation::Step => (0..)
-            .map(|_| start)
-            .take(length)
-            .collect(),
-        Interpolation::Linear => lerp_to_vec(start, end, length)
-            .into_iter()
-            .collect(),
+        Interpolation::Step => (0..).map(|_| start).take(length).collect(),
+        Interpolation::Linear => lerp_to_vec(start, end, length).into_iter().collect(),
         _ => panic!("non supported interpolation: {:?}", interpolation),
     };
 
