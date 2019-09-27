@@ -2,7 +2,8 @@ mod interpolate;
 
 use amethyst_sprite_studio::{
     timeline::TimeLineBuilder,
-    types::{FromUser, InstanceKeyBuilder, LinearColor},
+    traits::FromUser,
+    types::{InstanceKeyBuilder, LinearColor},
 };
 use interpolate::*;
 use sprite_studio::{AttributeTag, Interpolation, KeyValue, PartAnime, ValueType};
