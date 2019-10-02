@@ -5,29 +5,33 @@ mod types;
 use amethyst_sprite_studio::SpriteAnimation;
 use log::*;
 use ron::ser::*;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sprite_studio::{load_project, AnimationCells};
 use std::collections::BTreeMap;
 use std::io::{BufWriter, Write};
 use std::path::Path;
 
-pub fn convert_to_timeline<P>(
+pub fn convert_to_timeline<'de, P, U>(
     dir_path: P,
     project_path: P,
 ) -> std::result::Result<(), Box<dyn std::error::Error>>
 where
     P: AsRef<std::path::Path>,
+    U: amethyst_sprite_studio::traits::FromUser + Serialize + Deserialize<'de>,
 {
     let project_data = load_project(project_path.as_ref())?;
-    convert_to_sprite_animation(&project_data, project_path.as_ref(), dir_path.as_ref())?;
+    convert_to_sprite_animation::<U>(&project_data, project_path.as_ref(), dir_path.as_ref())?;
     Ok(())
 }
 
-fn convert_to_sprite_animation(
+fn convert_to_sprite_animation<'de, U>(
     data: &sprite_studio::SpriteStudioData,
     project_path: &Path,
     output_dir: &Path,
-) -> std::result::Result<(), Box<dyn std::error::Error>> {
+) -> std::result::Result<(), Box<dyn std::error::Error>>
+where
+    U: amethyst_sprite_studio::traits::FromUser + Serialize + Deserialize<'de>,
+{
     let project_name = project_path.file_stem().unwrap();
     let project_dir = project_path.parent().unwrap();
 
@@ -85,7 +89,7 @@ fn convert_to_sprite_animation(
             info!("\t{}", anim.name());
             let count = anim.setting().count() as usize;
             let fps = anim.setting().fps();
-            let mut animations = SpriteAnimation::<()>::new(fps, count);
+            let mut animations = SpriteAnimation::<U>::new(fps, count);
             for pa in anim.part_animes() {
                 let part = pack_index[pa.name()];
                 let id = part.index() as usize;
@@ -104,7 +108,7 @@ fn convert_to_sprite_animation(
                 let ref_pack_id = refference_animation.map(|(pack_id, _)| pack_id);
                 let ref_anim_id = refference_animation.map(|(_, anim_id)| anim_id);
 
-                let tl = timeline::part_anime_to_timeline::<()>(count, pa, &cell_name_dict)
+                let tl = timeline::part_anime_to_timeline(count, pa, &cell_name_dict)
                     .part_id(id)
                     .parent_id(parent)
                     .part_type(types::convert_part_type(part.part_type()))

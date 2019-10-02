@@ -2,21 +2,17 @@ mod interpolate;
 
 use amethyst_sprite_studio::{
     timeline::TimeLineBuilder,
-    traits::FromUser,
     types::{InstanceKeyBuilder, LinearColor},
 };
 use interpolate::*;
 use sprite_studio::{AttributeTag, Interpolation, KeyValue, PartAnime, ValueType};
 use std::collections::BTreeMap;
 
-pub(crate) fn part_anime_to_timeline<'de, U>(
+pub(crate) fn part_anime_to_timeline(
     frame_count: usize,
     part_anime: &PartAnime,
     cell_name_dict: &Vec<BTreeMap<String, usize>>,
-) -> TimeLineBuilder
-where
-    U: FromUser + serde::Serialize + serde::Deserialize<'de>,
-{
+) -> TimeLineBuilder {
     let mut builder = TimeLineBuilder::new(frame_count);
 
     for attr in part_anime.attributes() {
