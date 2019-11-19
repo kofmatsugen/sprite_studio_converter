@@ -1,8 +1,8 @@
-use amethyst::renderer::sprite::{SpriteList, SpritePosition};
+use amethyst::renderer::sprite::{SpriteList, SpritePosition, Sprites};
 
 use sprite_studio::AnimationCells;
 
-pub(crate) fn make_sprite_sheet(cell_map: &AnimationCells) -> SpriteList {
+pub(crate) fn make_sprite_sheet(cell_map: &AnimationCells) -> Sprites {
     let mut sprites = vec![];
     for cell in cell_map.cells() {
         let (x, y) = cell.position();
@@ -33,5 +33,5 @@ pub(crate) fn make_sprite_sheet(cell_map: &AnimationCells) -> SpriteList {
         sprites,
     };
 
-    sprite
+    Sprites::List(sprite)
 }
