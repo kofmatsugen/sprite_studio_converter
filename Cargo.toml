@@ -6,9 +6,12 @@ edition = "2018"
 
 [dependencies]
 serde = { version = "*", features = ["derive"] }
+serde_json="*"
 sprite_studio={path = "../sprite_studio/"}
 amethyst-sprite-studio={path = "../amethyst-sprite-studio/"}
 amethyst = {git = "https://github.com/amethyst/amethyst.git", features = ["vulkan"] }
 ron="*"
 log="*"
 itertools="*"
+failure="*"
+enum-iterator="*"
