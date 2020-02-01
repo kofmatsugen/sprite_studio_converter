@@ -1,15 +1,24 @@
 use crate::error::ParseAnimationError;
 use amethyst_sprite_studio::{
     resource::{animation, data, pack, part},
+    traits::{AnimationKey, AnimationUser},
     types::{cell, interpolate, Bounds, InstanceKey, InstanceKeyBuilder, LinearColor, PartType},
 };
 use std::collections::BTreeMap;
+use std::str::FromStr;
 
 const SUPPORTED_FPS: [u32; 1] = [60];
 
-pub fn convert<U: serde::de::DeserializeOwned>(
-    project: &sprite_studio::SpriteStudioData,
-) -> Result<data::AnimationData<U>, failure::Error> {
+pub fn convert<'a, U, P, A>(
+    project: &'a sprite_studio::SpriteStudioData,
+) -> Result<data::AnimationData<U, P, A>, failure::Error>
+where
+    U: AnimationUser,
+    P: AnimationKey + FromStr,
+    A: AnimationKey + FromStr,
+    P::Err: failure::Fail,
+    A::Err: failure::Fail,
+{
     let cell_map_names = make_cell_names(&project);
 
     convert_project(project, cell_map_names)
@@ -29,23 +38,35 @@ fn make_cell_names(project: &sprite_studio::SpriteStudioData) -> Vec<Vec<String>
     cell_map_names
 }
 
-fn convert_project<U: serde::de::DeserializeOwned>(
-    project: &sprite_studio::SpriteStudioData,
+fn convert_project<'a, U, P, A>(
+    project: &'a sprite_studio::SpriteStudioData,
     cell_map_names: Vec<Vec<String>>,
-) -> Result<data::AnimationData<U>, failure::Error> {
+) -> Result<data::AnimationData<U, P, A>, failure::Error>
+where
+    U: AnimationUser,
+    P: AnimationKey + FromStr,
+    A: AnimationKey + FromStr,
+    P::Err: failure::Fail,
+    A::Err: failure::Fail,
+{
     let mut anim_packs = BTreeMap::new();
     for pack in project.packs() {
         let anim_pack = convert_pack(pack, &cell_map_names)?;
-        anim_packs.insert(pack.name().into(), anim_pack);
+        anim_packs.insert(P::from_str(pack.name())?, anim_pack);
     }
 
     Ok(data::AnimationDataBuilder::new(anim_packs).build())
 }
 
-fn convert_pack<U: serde::de::DeserializeOwned>(
-    pack: &sprite_studio::AnimationPack,
+fn convert_pack<'a, U, A>(
+    pack: &'a sprite_studio::AnimationPack,
     cell_map_names: &Vec<Vec<String>>,
-) -> Result<pack::Pack<U>, failure::Error> {
+) -> Result<pack::Pack<U, A>, failure::Error>
+where
+    U: AnimationUser,
+    A: AnimationKey + FromStr,
+    A::Err: failure::Fail,
+{
     let mut parts = vec![];
 
     for part in pack.parts() {
@@ -58,7 +79,7 @@ fn convert_pack<U: serde::de::DeserializeOwned>(
 
     for animation in pack.animations() {
         let anim = convert_animation(&parts, animation, cell_map_names)?;
-        animations.insert(animation.name().to_string(), anim);
+        animations.insert(A::from_str(animation.name())?, anim);
     }
 
     Ok(pack::PackBuilder::new(parts, animations).build())

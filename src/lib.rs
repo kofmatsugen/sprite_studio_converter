@@ -2,34 +2,48 @@ pub mod convert;
 mod error;
 mod sprite_sheet;
 
+use amethyst_sprite_studio::traits::{AnimationKey, AnimationUser};
 use log::*;
 use ron::ser::*;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::Serialize;
 use sprite_studio::{load_project, AnimationCells};
 use std::collections::BTreeMap;
 use std::io::{BufWriter, Write};
 use std::path::Path;
+use std::str::FromStr;
 
-pub fn convert_to_timeline<'de, P, U>(
-    dir_path: P,
-    project_path: P,
+pub fn convert_to_timeline<F, U, P, A>(
+    dir_path: F,
+    project_path: F,
 ) -> std::result::Result<(), failure::Error>
 where
-    P: AsRef<std::path::Path>,
-    U: Serialize + DeserializeOwned,
+    F: AsRef<std::path::Path>,
+    U: AnimationUser,
+    P: AnimationKey + FromStr,
+    A: AnimationKey + FromStr,
+    P::Err: failure::Fail,
+    A::Err: failure::Fail,
 {
     let project_data = load_project(project_path.as_ref())?;
-    convert_to_sprite_animation::<U>(&project_data, project_path.as_ref(), dir_path.as_ref())?;
+    convert_to_sprite_animation::<U, P, A>(
+        &project_data,
+        project_path.as_ref(),
+        dir_path.as_ref(),
+    )?;
     Ok(())
 }
 
-fn convert_to_sprite_animation<U>(
-    project_data: &sprite_studio::SpriteStudioData,
+fn convert_to_sprite_animation<'a, U, P, A>(
+    project_data: &'a sprite_studio::SpriteStudioData,
     project_path: &Path,
     output_dir: &Path,
 ) -> std::result::Result<(), failure::Error>
 where
-    U: Serialize + DeserializeOwned,
+    U: AnimationUser,
+    P: AnimationKey + FromStr,
+    A: AnimationKey + FromStr,
+    P::Err: failure::Fail,
+    A::Err: failure::Fail,
 {
     let project_name = project_path.file_stem().unwrap();
     let project_dir = project_path.parent().unwrap();
@@ -64,7 +78,7 @@ where
         data_to_file(sheet, sheet_path)?;
     }
 
-    let anim = convert::convert::<U>(project_data)?;
+    let anim = convert::convert::<U, P, A>(project_data)?;
     data_to_file(anim, animation_dir.join("animation.anim.ron"))?;
 
     Ok(())
