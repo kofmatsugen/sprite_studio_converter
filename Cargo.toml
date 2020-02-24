@@ -5,13 +5,13 @@ authors = ["Kaneyuki Hiromasa <matsugen2511@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-serde = { version = "*", features = ["derive"] }
-serde_json="*"
+serde = { version = "1.0.104", features = ["derive"] }
+serde_json= "1.0.48"
 sprite_studio={path = "../sprite_studio/"}
 amethyst-sprite-studio={path = "../amethyst-sprite-studio/"}
 amethyst = {git = "https://github.com/amethyst/amethyst.git", features = ["vulkan"] }
-ron="*"
-log="*"
-itertools="*"
-failure="*"
-enum-iterator="*"
+ron= "0.5.1"
+log= "0.4.8"
+itertools= "0.8.2"
+failure= "0.1.6"
+enum-iterator= "0.6.0"
