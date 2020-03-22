@@ -2,48 +2,46 @@ pub mod convert;
 mod error;
 mod sprite_sheet;
 
-use amethyst_sprite_studio::traits::{AnimationKey, AnimationUser};
+use amethyst_sprite_studio::traits::animation_file::AnimationFile;
 use log::*;
 use ron::ser::*;
 use serde::Serialize;
 use sprite_studio::{load_project, AnimationCells};
-use std::collections::BTreeMap;
-use std::io::{BufWriter, Write};
-use std::path::Path;
-use std::str::FromStr;
+use std::{
+    collections::BTreeMap,
+    io::{BufWriter, Write},
+    path::Path,
+    str::FromStr,
+};
 
-pub fn convert_to_timeline<F, U, P, A>(
+pub fn convert_to_timeline<F, T>(
     dir_path: F,
     project_path: F,
 ) -> std::result::Result<(), failure::Error>
 where
     F: AsRef<std::path::Path>,
-    U: AnimationUser,
-    P: AnimationKey + FromStr,
-    A: AnimationKey + FromStr,
-    P::Err: failure::Fail,
-    A::Err: failure::Fail,
+    T: AnimationFile,
+    T::PackKey: FromStr,
+    T::AnimationKey: FromStr,
+    <T::PackKey as FromStr>::Err: failure::Fail,
+    <T::AnimationKey as FromStr>::Err: failure::Fail,
 {
     let project_data = load_project(project_path.as_ref())?;
-    convert_to_sprite_animation::<U, P, A>(
-        &project_data,
-        project_path.as_ref(),
-        dir_path.as_ref(),
-    )?;
+    convert_to_sprite_animation::<T>(&project_data, project_path.as_ref(), dir_path.as_ref())?;
     Ok(())
 }
 
-fn convert_to_sprite_animation<'a, U, P, A>(
+fn convert_to_sprite_animation<'a, T>(
     project_data: &'a sprite_studio::SpriteStudioData,
     project_path: &Path,
     output_dir: &Path,
 ) -> std::result::Result<(), failure::Error>
 where
-    U: AnimationUser,
-    P: AnimationKey + FromStr,
-    A: AnimationKey + FromStr,
-    P::Err: failure::Fail,
-    A::Err: failure::Fail,
+    T: AnimationFile,
+    T::PackKey: FromStr,
+    T::AnimationKey: FromStr,
+    <T::PackKey as FromStr>::Err: failure::Fail,
+    <T::AnimationKey as FromStr>::Err: failure::Fail,
 {
     let project_name = project_path.file_stem().unwrap();
     let project_dir = project_path.parent().unwrap();
@@ -78,7 +76,7 @@ where
         data_to_file(sheet, sheet_path)?;
     }
 
-    let anim = convert::convert::<U, P, A>(project_data)?;
+    let anim = convert::convert::<T>(project_data)?;
     data_to_file(anim, animation_dir.join("animation.anim.ron"))?;
 
     Ok(())

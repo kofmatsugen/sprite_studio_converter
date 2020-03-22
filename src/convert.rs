@@ -1,7 +1,7 @@
 use crate::error::ParseAnimationError;
 use amethyst_sprite_studio::{
     resource::{animation, data, pack, part},
-    traits::{AnimationKey, AnimationUser},
+    traits::animation_file::AnimationFile,
     types::{cell, interpolate, Bounds, InstanceKey, InstanceKeyBuilder, LinearColor, PartType},
 };
 use std::collections::BTreeMap;
@@ -9,19 +9,19 @@ use std::str::FromStr;
 
 const SUPPORTED_FPS: [u32; 1] = [60];
 
-pub fn convert<'a, U, P, A>(
+pub fn convert<'a, T>(
     project: &'a sprite_studio::SpriteStudioData,
-) -> Result<data::AnimationData<U, P, A>, failure::Error>
+) -> Result<data::AnimationData<T>, failure::Error>
 where
-    U: AnimationUser,
-    P: AnimationKey + FromStr,
-    A: AnimationKey + FromStr,
-    P::Err: failure::Fail,
-    A::Err: failure::Fail,
+    T: AnimationFile,
+    T::PackKey: FromStr,
+    T::AnimationKey: FromStr,
+    <T::PackKey as FromStr>::Err: failure::Fail,
+    <T::AnimationKey as FromStr>::Err: failure::Fail,
 {
     let cell_map_names = make_cell_names(&project);
 
-    convert_project(project, cell_map_names)
+    convert_project::<T>(project, cell_map_names)
 }
 
 fn make_cell_names(project: &sprite_studio::SpriteStudioData) -> Vec<Vec<String>> {
@@ -38,34 +38,36 @@ fn make_cell_names(project: &sprite_studio::SpriteStudioData) -> Vec<Vec<String>
     cell_map_names
 }
 
-fn convert_project<'a, U, P, A>(
+fn convert_project<'a, T>(
     project: &'a sprite_studio::SpriteStudioData,
     cell_map_names: Vec<Vec<String>>,
-) -> Result<data::AnimationData<U, P, A>, failure::Error>
+) -> Result<data::AnimationData<T>, failure::Error>
 where
-    U: AnimationUser,
-    P: AnimationKey + FromStr,
-    A: AnimationKey + FromStr,
-    P::Err: failure::Fail,
-    A::Err: failure::Fail,
+    T: AnimationFile,
+    T::PackKey: FromStr,
+    T::AnimationKey: FromStr,
+    <T::PackKey as FromStr>::Err: failure::Fail,
+    <T::AnimationKey as FromStr>::Err: failure::Fail,
 {
     let mut anim_packs = BTreeMap::new();
     for pack in project.packs() {
-        let anim_pack = convert_pack(pack, &cell_map_names)?;
-        anim_packs.insert(P::from_str(pack.name())?, anim_pack);
+        let anim_pack = convert_pack::<T>(pack, &cell_map_names)?;
+        anim_packs.insert(T::PackKey::from_str(pack.name())?, anim_pack);
     }
 
     Ok(data::AnimationDataBuilder::new(anim_packs).build())
 }
 
-fn convert_pack<'a, U, A>(
+fn convert_pack<'a, T>(
     pack: &'a sprite_studio::AnimationPack,
     cell_map_names: &Vec<Vec<String>>,
-) -> Result<pack::Pack<U, A>, failure::Error>
+) -> Result<pack::Pack<T::UserData, T::AnimationKey>, failure::Error>
 where
-    U: AnimationUser,
-    A: AnimationKey + FromStr,
-    A::Err: failure::Fail,
+    T: AnimationFile,
+    T::PackKey: FromStr,
+    T::AnimationKey: FromStr,
+    <T::PackKey as FromStr>::Err: failure::Fail,
+    <T::AnimationKey as FromStr>::Err: failure::Fail,
 {
     let mut parts = vec![];
 
@@ -79,7 +81,7 @@ where
 
     for animation in pack.animations() {
         let anim = convert_animation(&parts, animation, cell_map_names)?;
-        animations.insert(A::from_str(animation.name())?, anim);
+        animations.insert(T::AnimationKey::from_str(animation.name())?, anim);
     }
 
     Ok(pack::PackBuilder::new(parts, animations).build())
