@@ -61,7 +61,7 @@ where
 fn convert_pack<'a, T>(
     pack: &'a sprite_studio::AnimationPack,
     cell_map_names: &Vec<Vec<String>>,
-) -> Result<pack::Pack<T::UserData, T::AnimationKey>, failure::Error>
+) -> Result<pack::Pack<T::UserData, T::PackKey, T::AnimationKey>, failure::Error>
 where
     T: AnimationFile,
     T::PackKey: FromStr,
@@ -72,7 +72,7 @@ where
     let mut parts = vec![];
 
     for part in pack.parts() {
-        let (_, part) = convert_part(part)?;
+        let (_, part) = convert_part::<T>(part)?;
 
         parts.push(part);
     }
@@ -80,14 +80,23 @@ where
     let mut animations = BTreeMap::new();
 
     for animation in pack.animations() {
-        let anim = convert_animation(&parts, animation, cell_map_names)?;
+        let anim = convert_animation::<T>(&parts, animation, cell_map_names)?;
         animations.insert(T::AnimationKey::from_str(animation.name())?, anim);
     }
 
     Ok(pack::PackBuilder::new(parts, animations).build())
 }
 
-fn convert_part(part: &sprite_studio::Part) -> Result<(u32, part::Part), failure::Error> {
+fn convert_part<T>(
+    part: &sprite_studio::Part,
+) -> Result<(u32, part::Part<T::PackKey, T::AnimationKey>), failure::Error>
+where
+    T: AnimationFile,
+    T::PackKey: FromStr,
+    T::AnimationKey: FromStr,
+    <T::PackKey as FromStr>::Err: failure::Fail,
+    <T::AnimationKey as FromStr>::Err: failure::Fail,
+{
     let part_id = if part.index() < 0 {
         Err(ParseAnimationError::PartIndexError(
             part.name().into(),
@@ -113,7 +122,10 @@ fn convert_part(part: &sprite_studio::Part) -> Result<(u32, part::Part), failure
     };
 
     let builder = match part.refference_animation() {
-        Some((pack_name, anim_name)) => builder.refference_animation_name(pack_name, anim_name),
+        Some((pack_name, anim_name)) => builder.refference_animation_name(
+            T::PackKey::from_str(pack_name)?,
+            T::AnimationKey::from_str(anim_name)?,
+        ),
         _ => builder,
     };
 
@@ -129,11 +141,18 @@ fn convert_part(part: &sprite_studio::Part) -> Result<(u32, part::Part), failure
     Ok((part_id, builder.bounds(bounds).build()))
 }
 
-fn convert_animation<U: serde::de::DeserializeOwned>(
-    parts: &Vec<part::Part>,
+fn convert_animation<T>(
+    parts: &Vec<part::Part<T::PackKey, T::AnimationKey>>,
     animation: &sprite_studio::Animation,
     cell_map_names: &Vec<Vec<String>>,
-) -> Result<animation::Animation<U>, ParseAnimationError> {
+) -> Result<animation::Animation<T::UserData>, ParseAnimationError>
+where
+    T: AnimationFile,
+    T::PackKey: FromStr,
+    T::AnimationKey: FromStr,
+    <T::PackKey as FromStr>::Err: failure::Fail,
+    <T::AnimationKey as FromStr>::Err: failure::Fail,
+{
     // パーツごとにアニメーションキーフレームをまとめる
     // サポートしてるFPSか
     let fps = animation.setting().fps();
