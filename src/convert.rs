@@ -2,7 +2,10 @@ use crate::error::ParseAnimationError;
 use amethyst_sprite_studio::{
     resource::{animation, data, pack, part},
     traits::animation_file::AnimationFile,
-    types::{cell, interpolate, Bounds, InstanceKey, InstanceKeyBuilder, LinearColor, PartType},
+    types::{
+        cell, interpolate, Bounds, InstanceKey, InstanceKeyBuilder, LinearColor, PartType,
+        VertexKey, VertexKeyBuilder,
+    },
 };
 use std::collections::BTreeMap;
 use std::str::FromStr;
@@ -53,9 +56,15 @@ where
     for pack in project.packs() {
         let mut pack_cell_map_names = vec![];
 
-        for in_pack_cell_map in pack.cell_map_names() {
-            log::info!("find map: {}", in_pack_cell_map);
-            pack_cell_map_names.push(cell_map_names[in_pack_cell_map].clone());
+        if pack.cell_map_names().count() > 0 {
+            for in_pack_cell_map in pack.cell_map_names() {
+                pack_cell_map_names.push(cell_map_names[in_pack_cell_map].clone());
+            }
+        } else {
+            // アニメーション側になければもともとあるセルマップ
+            for (_, cell_map) in &cell_map_names {
+                pack_cell_map_names.push(cell_map.clone());
+            }
         }
 
         let anim_pack = convert_pack::<T>(pack, &pack_cell_map_names)?;
@@ -123,6 +132,10 @@ where
         sprite_studio::PartType::Normal => PartType::Normal,
         sprite_studio::PartType::Text => PartType::Text,
         sprite_studio::PartType::Instance => PartType::Instance,
+        sprite_studio::PartType::Mesh => PartType::Mesh,
+        sprite_studio::PartType::Bone => PartType::Bone,
+        sprite_studio::PartType::Joint => PartType::Joint,
+        sprite_studio::PartType::Armature => PartType::Armature,
     };
 
     let builder = part::PartBuilder::new(part.name(), part_type);
@@ -291,7 +304,9 @@ fn convert_key_value<U: serde::de::DeserializeOwned>(
         sprite_studio::AttributeTag::Color => {
             builder.add_color(part_id, frame, interpolation, convert_color(key)?);
         }
-        sprite_studio::AttributeTag::Vertex => unimplemented!("not support vertex"),
+        sprite_studio::AttributeTag::Vertex => {
+            builder.add_vertex(part_id, frame, interpolation, convert_vertex(key)?);
+        }
         sprite_studio::AttributeTag::Pivotx => unimplemented!("not support pivot x"),
         sprite_studio::AttributeTag::Pivoty => unimplemented!("not support pivot y"),
         sprite_studio::AttributeTag::Anchorx => unimplemented!("not support anchor x"),
@@ -306,6 +321,9 @@ fn convert_key_value<U: serde::de::DeserializeOwned>(
         sprite_studio::AttributeTag::Uvsx => unimplemented!("not support uvsx"),
         sprite_studio::AttributeTag::Uvsy => unimplemented!("not support uvsy"),
         sprite_studio::AttributeTag::Boundr => unimplemented!("not support boundr"),
+        sprite_studio::AttributeTag::Deform => {
+            // まだ実装してないDeform処理
+        }
         sprite_studio::AttributeTag::User => {
             builder.add_user(part_id, frame, interpolation, convert_user(key)?);
         }
@@ -400,4 +418,18 @@ fn convert_user<U: serde::de::DeserializeOwned>(
 
     serde_json::de::from_str(&text)
         .map_err(|err| ParseAnimationError::JsonDeserializeError { err, source: text })
+}
+
+fn convert_vertex(key_values: &sprite_studio::KeyValue) -> Result<VertexKey, ParseAnimationError> {
+    let vertex = key_values
+        .values()
+        .fold(VertexKeyBuilder::new(), |builder, v| match v {
+            &sprite_studio::ValueType::VertexLT(x, y) => builder.lt((x, y)),
+            &sprite_studio::ValueType::VertexRT(x, y) => builder.rt((x, y)),
+            &sprite_studio::ValueType::VertexLB(x, y) => builder.lb((x, y)),
+            &sprite_studio::ValueType::VertexRB(x, y) => builder.rb((x, y)),
+            _ => builder,
+        })
+        .build();
+    Ok(vertex)
 }
