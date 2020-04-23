@@ -21,4 +21,6 @@ pub enum ParseAnimationError {
     NotSetText,
     #[fail(display = "json deserialize error: {}, source: {}", err, source)]
     JsonDeserializeError { err: JsonError, source: String },
+    #[fail(display = "conflict position z type. please use position z or priority")]
+    ConflictPositionZ,
 }

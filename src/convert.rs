@@ -153,6 +153,12 @@ where
     Ok((part_id, builder.bounds(bounds).build()))
 }
 
+// SpriteStudio ではZ座標はPositionとPriorityがあるのでどっちかだけ許したい
+enum PositionZType {
+    Position,
+    Priority,
+}
+
 fn convert_animation<T>(
     parts: &Vec<part::Part<T::PackKey, T::AnimationKey>>,
     animation: &sprite_studio::Animation,
@@ -178,14 +184,23 @@ where
         fps as usize,
     );
 
+    // 最初に出た方がZ座標の基準
+    let mut position_z_type = None;
+
     for (part_id, part) in parts.iter().enumerate() {
         // パックにあるパーツと同じ名前のアニメーションデータがあるか探す
         let part_anim = animation.part_animes().find(|pa| part.name() == pa.name());
         if let Some(part_anim) = part_anim {
             for attr in part_anim.attributes() {
                 for key in attr.keys() {
-                    match convert_key_value(&mut builder, part_id, attr.tag(), key, cell_map_names)
-                    {
+                    match convert_key_value(
+                        &mut builder,
+                        part_id,
+                        attr.tag(),
+                        key,
+                        cell_map_names,
+                        &mut position_z_type,
+                    ) {
                         Ok(_) => {}
                         Err(err) => log::error!("parse key error: {}", err),
                     }
@@ -203,6 +218,7 @@ fn convert_key_value<U: serde::de::DeserializeOwned>(
     tag: &sprite_studio::AttributeTag,
     key: &sprite_studio::KeyValue,
     cell_map_names: &Vec<Vec<String>>,
+    position_z_type: &mut Option<PositionZType>,
 ) -> Result<(), ParseAnimationError> {
     use interpolate::Interpolation;
     use sprite_studio::Interpolation as SsInter;
@@ -232,7 +248,12 @@ fn convert_key_value<U: serde::de::DeserializeOwned>(
             builder.add_pos_y(part_id, frame, interpolation, convert_float(key)?);
         }
         sprite_studio::AttributeTag::Posz => {
-            builder.add_pos_z(part_id, frame, interpolation, convert_float(key)?);
+            if let Some(PositionZType::Priority) = position_z_type {
+                Err(ParseAnimationError::ConflictPositionZ)?;
+            } else {
+                builder.add_pos_z(part_id, frame, interpolation, convert_float(key)?);
+                *position_z_type = Some(PositionZType::Position);
+            }
         }
         sprite_studio::AttributeTag::Rotx => unimplemented!("not support rot x"),
         sprite_studio::AttributeTag::Roty => unimplemented!("not support rot y"),
@@ -249,9 +270,13 @@ fn convert_key_value<U: serde::de::DeserializeOwned>(
             builder.add_alpha(part_id, frame, interpolation, convert_float(key)?);
         }
         sprite_studio::AttributeTag::Prio => {
-            let prio = convert_float(key)?;
-            log::warn!("priority is not supported, please use posz: {}", prio);
-            builder.add_pos_z(part_id, frame, interpolation, -prio);
+            if let Some(PositionZType::Position) = position_z_type {
+                Err(ParseAnimationError::ConflictPositionZ)?;
+            } else {
+                let prio = convert_float(key)?;
+                builder.add_pos_z(part_id, frame, interpolation, -prio);
+                *position_z_type = Some(PositionZType::Priority);
+            }
         }
         sprite_studio::AttributeTag::Fliph => {
             builder.add_flip_h(part_id, frame, interpolation, convert_bool(key)?)
