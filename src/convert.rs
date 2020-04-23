@@ -7,7 +7,7 @@ use amethyst_sprite_studio::{
 use std::collections::BTreeMap;
 use std::str::FromStr;
 
-const SUPPORTED_FPS: [u32; 1] = [60];
+const SUPPORTED_FPS: [u32; 2] = [30, 60];
 
 pub fn convert<'a, T>(
     project: &'a sprite_studio::SpriteStudioData,
@@ -24,8 +24,8 @@ where
     convert_project::<T>(project, cell_map_names)
 }
 
-fn make_cell_names(project: &sprite_studio::SpriteStudioData) -> Vec<Vec<String>> {
-    let mut cell_map_names = vec![];
+fn make_cell_names(project: &sprite_studio::SpriteStudioData) -> BTreeMap<String, Vec<String>> {
+    let mut cell_map_names = BTreeMap::new();
 
     for cell_map in project.cell_maps() {
         // セルの指定を名前からIDに変更するための情報生成
@@ -33,14 +33,14 @@ fn make_cell_names(project: &sprite_studio::SpriteStudioData) -> Vec<Vec<String>
         for cell in cell_map.cells() {
             cell_names.push(cell.name().to_string());
         }
-        cell_map_names.push(cell_names);
+        cell_map_names.insert(cell_map.file_name().to_string(), cell_names);
     }
     cell_map_names
 }
 
 fn convert_project<'a, T>(
     project: &'a sprite_studio::SpriteStudioData,
-    cell_map_names: Vec<Vec<String>>,
+    cell_map_names: BTreeMap<String, Vec<String>>,
 ) -> Result<data::AnimationData<T>, failure::Error>
 where
     T: AnimationFile,
@@ -51,7 +51,14 @@ where
 {
     let mut anim_packs = BTreeMap::new();
     for pack in project.packs() {
-        let anim_pack = convert_pack::<T>(pack, &cell_map_names)?;
+        let mut pack_cell_map_names = vec![];
+
+        for in_pack_cell_map in pack.cell_map_names() {
+            log::info!("find map: {}", in_pack_cell_map);
+            pack_cell_map_names.push(cell_map_names[in_pack_cell_map].clone());
+        }
+
+        let anim_pack = convert_pack::<T>(pack, &pack_cell_map_names)?;
         anim_packs.insert(T::PackKey::from_str(pack.name())?, anim_pack);
     }
 
@@ -81,6 +88,11 @@ where
 
     for animation in pack.animations() {
         let anim = convert_animation::<T>(&parts, animation, cell_map_names)?;
+        if animation.name() == "Setup" {
+            // SpriteStudio6でSetupアニメーションが追加されるが，これはゲーム上では使わない
+            log::warn!("{:?} Animation Convert Skip", animation.name());
+            continue;
+        }
         animations.insert(T::AnimationKey::from_str(animation.name())?, anim);
     }
 
