@@ -136,6 +136,7 @@ where
         sprite_studio::PartType::Bone => PartType::Bone,
         sprite_studio::PartType::Joint => PartType::Joint,
         sprite_studio::PartType::Armature => PartType::Armature,
+        sprite_studio::PartType::Effect => PartType::Effect,
     };
 
     let builder = part::PartBuilder::new(part.name(), part_type);
