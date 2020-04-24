@@ -206,17 +206,14 @@ where
         if let Some(part_anim) = part_anim {
             for attr in part_anim.attributes() {
                 for key in attr.keys() {
-                    match convert_key_value(
+                    convert_key_value(
                         &mut builder,
                         part_id,
                         attr.tag(),
                         key,
                         cell_map_names,
                         &mut position_z_type,
-                    ) {
-                        Ok(_) => {}
-                        Err(err) => log::error!("parse key error: {}", err),
-                    }
+                    )?;
                 }
             }
         }
@@ -262,14 +259,12 @@ fn convert_key_value<U: serde::de::DeserializeOwned>(
         }
         sprite_studio::AttributeTag::Posz => {
             if let Some(PositionZType::Priority) = position_z_type {
-                Err(ParseAnimationError::ConflictPositionZ)?;
+                return Err(ParseAnimationError::ConflictPositionZ);
             } else {
                 builder.add_pos_z(part_id, frame, interpolation, convert_float(key)?);
                 *position_z_type = Some(PositionZType::Position);
             }
         }
-        sprite_studio::AttributeTag::Rotx => unimplemented!("not support rot x"),
-        sprite_studio::AttributeTag::Roty => unimplemented!("not support rot y"),
         sprite_studio::AttributeTag::Rotz => {
             builder.add_rotated(part_id, frame, interpolation, convert_float(key)?);
         }
@@ -307,28 +302,14 @@ fn convert_key_value<U: serde::de::DeserializeOwned>(
         sprite_studio::AttributeTag::Vertex => {
             builder.add_vertex(part_id, frame, interpolation, convert_vertex(key)?);
         }
-        sprite_studio::AttributeTag::Pivotx => unimplemented!("not support pivot x"),
-        sprite_studio::AttributeTag::Pivoty => unimplemented!("not support pivot y"),
-        sprite_studio::AttributeTag::Anchorx => unimplemented!("not support anchor x"),
-        sprite_studio::AttributeTag::Anchory => unimplemented!("not support anchor y"),
-        sprite_studio::AttributeTag::Sizex => unimplemented!("not support size x"),
-        sprite_studio::AttributeTag::Sizey => unimplemented!("not support size y"),
-        sprite_studio::AttributeTag::Imgfliph => unimplemented!("not support image flip h"),
-        sprite_studio::AttributeTag::Imgflipv => unimplemented!("not support image flip v"),
-        sprite_studio::AttributeTag::Uvtx => unimplemented!("not support uvtx"),
-        sprite_studio::AttributeTag::Uvty => unimplemented!("not support uvty"),
-        sprite_studio::AttributeTag::Uvrz => unimplemented!("not support uvtz"),
-        sprite_studio::AttributeTag::Uvsx => unimplemented!("not support uvsx"),
-        sprite_studio::AttributeTag::Uvsy => unimplemented!("not support uvsy"),
-        sprite_studio::AttributeTag::Boundr => unimplemented!("not support boundr"),
-        sprite_studio::AttributeTag::Deform => {
-            // まだ実装してないDeform処理
-        }
         sprite_studio::AttributeTag::User => {
             builder.add_user(part_id, frame, interpolation, convert_user(key)?);
         }
         sprite_studio::AttributeTag::Instance => {
             builder.add_instance(part_id, frame, interpolation, convert_instance_key(key));
+        }
+        _ => {
+            return Err(ParseAnimationError::NonSupportedAttribute { attribute: *tag });
         }
     }
     Ok(())

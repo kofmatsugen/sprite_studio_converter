@@ -1,5 +1,6 @@
 use failure::Fail;
 use serde_json::error::Error as JsonError;
+use sprite_studio::AttributeTag;
 
 #[derive(Debug, Fail)]
 pub enum ParseAnimationError {
@@ -23,4 +24,6 @@ pub enum ParseAnimationError {
     JsonDeserializeError { err: JsonError, source: String },
     #[fail(display = "conflict position z type. please use position z or priority")]
     ConflictPositionZ,
+    #[fail(display = "unsupported attribute: {:?}", attribute)]
+    NonSupportedAttribute { attribute: AttributeTag },
 }
