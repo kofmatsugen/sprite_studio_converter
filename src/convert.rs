@@ -3,8 +3,8 @@ use amethyst_sprite_studio::{
     resource::{animation, data, pack, part},
     traits::animation_file::AnimationFile,
     types::{
-        cell, interpolate, Bounds, InstanceKey, InstanceKeyBuilder, LinearColor, PartType,
-        VertexKey, VertexKeyBuilder,
+        cell, interpolate, Bounds, EffectKey, EffectKeyBuilder, InstanceKey, InstanceKeyBuilder,
+        LinearColor, PartType, VertexKey, VertexKeyBuilder,
     },
 };
 use std::collections::BTreeMap;
@@ -23,8 +23,9 @@ where
     <T::AnimationKey as FromStr>::Err: failure::Fail,
 {
     let cell_map_names = make_cell_names(&project);
+    let effect_names = make_effect_names(&project);
 
-    convert_project::<T>(project, cell_map_names)
+    convert_project::<T>(project, cell_map_names, effect_names)
 }
 
 fn make_cell_names(project: &sprite_studio::SpriteStudioData) -> BTreeMap<String, Vec<String>> {
@@ -41,9 +42,20 @@ fn make_cell_names(project: &sprite_studio::SpriteStudioData) -> BTreeMap<String
     cell_map_names
 }
 
+fn make_effect_names(project: &sprite_studio::SpriteStudioData) -> Vec<String> {
+    let mut effect_names = vec![];
+
+    for effect in project.effects() {
+        // エフェクトの指定を名前からIDに変更するための情報生成
+        effect_names.push(effect.name().into());
+    }
+    effect_names
+}
+
 fn convert_project<'a, T>(
     project: &'a sprite_studio::SpriteStudioData,
     cell_map_names: BTreeMap<String, Vec<String>>,
+    effect_names: Vec<String>,
 ) -> Result<data::AnimationData<T>, failure::Error>
 where
     T: AnimationFile,
@@ -67,7 +79,8 @@ where
             }
         }
 
-        let anim_pack = convert_pack::<T>(pack, &pack_cell_map_names)?;
+        log::info!("convert pack start: {}", pack.name());
+        let anim_pack = convert_pack::<T>(pack, &pack_cell_map_names, &effect_names)?;
         anim_packs.insert(T::PackKey::from_str(pack.name())?, anim_pack);
     }
 
@@ -77,6 +90,7 @@ where
 fn convert_pack<'a, T>(
     pack: &'a sprite_studio::AnimationPack,
     cell_map_names: &Vec<Vec<String>>,
+    effect_names: &Vec<String>,
 ) -> Result<pack::Pack<T::UserData, T::PackKey, T::AnimationKey>, failure::Error>
 where
     T: AnimationFile,
@@ -88,7 +102,7 @@ where
     let mut parts = vec![];
 
     for part in pack.parts() {
-        let (_, part) = convert_part::<T>(part)?;
+        let (_, part) = convert_part::<T>(part, effect_names)?;
 
         parts.push(part);
     }
@@ -96,12 +110,12 @@ where
     let mut animations = BTreeMap::new();
 
     for animation in pack.animations() {
-        let anim = convert_animation::<T>(&parts, animation, cell_map_names)?;
         if animation.name() == "Setup" {
             // SpriteStudio6でSetupアニメーションが追加されるが，これはゲーム上では使わない
-            log::warn!("{:?} Animation Convert Skip", animation.name());
             continue;
         }
+        log::info!("convert animation start: {}", animation.name());
+        let anim = convert_animation::<T>(&parts, animation, cell_map_names)?;
         animations.insert(T::AnimationKey::from_str(animation.name())?, anim);
     }
 
@@ -110,6 +124,7 @@ where
 
 fn convert_part<T>(
     part: &sprite_studio::Part,
+    effect_names: &Vec<String>,
 ) -> Result<(u32, part::Part<T::PackKey, T::AnimationKey>), failure::Error>
 where
     T: AnimationFile,
@@ -162,6 +177,15 @@ where
         sprite_studio::BoundsType::Circle => Some(Bounds::Circle),
         sprite_studio::BoundsType::CircleMin => Some(Bounds::CircleMin),
         sprite_studio::BoundsType::CircleMax => Some(Bounds::CircleMax),
+    };
+
+    let builder = if let Some(index) = part
+        .refference_effect()
+        .and_then(|name| effect_names.iter().position(|n| n == name))
+    {
+        builder.refference_effect_index(index)
+    } else {
+        builder
     };
 
     Ok((part_id, builder.bounds(bounds).build()))
@@ -309,6 +333,9 @@ fn convert_key_value<U: serde::de::DeserializeOwned>(
         sprite_studio::AttributeTag::Instance => {
             builder.add_instance(part_id, frame, interpolation, convert_instance_key(key));
         }
+        sprite_studio::AttributeTag::Effect => {
+            builder.add_effect(part_id, frame, interpolation, convert_effect(key)?);
+        }
         _ => {
             return Err(ParseAnimationError::NonSupportedAttribute { attribute: *tag });
         }
@@ -414,4 +441,17 @@ fn convert_vertex(key_values: &sprite_studio::KeyValue) -> Result<VertexKey, Par
         })
         .build();
     Ok(vertex)
+}
+
+fn convert_effect(key_values: &sprite_studio::KeyValue) -> Result<EffectKey, ParseAnimationError> {
+    let effect = key_values
+        .values()
+        .fold(EffectKeyBuilder::new(), |builder, v| match v {
+            &sprite_studio::ValueType::StartTime(time) => builder.start_time(time),
+            &sprite_studio::ValueType::Speed(speed) => builder.speed(speed),
+            &sprite_studio::ValueType::Indipendent(independent) => builder.independent(independent),
+            _ => builder,
+        })
+        .build();
+    Ok(effect)
 }
