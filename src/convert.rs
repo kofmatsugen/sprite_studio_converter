@@ -108,18 +108,25 @@ where
     }
 
     let mut animations = BTreeMap::new();
+    let mut setup = None;
 
     for animation in pack.animations() {
         if animation.name() == "Setup" {
-            // SpriteStudio6でSetupアニメーションが追加されるが，これはゲーム上では使わない
+            log::info!("convert animation start: {}", animation.name());
+            setup = convert_animation::<T>(&parts, animation, cell_map_names)?.into();
             continue;
+        } else {
+            log::info!("convert animation start: {}", animation.name());
+            let fps = animation.setting().fps();
+            if SUPPORTED_FPS.contains(&fps) == false {
+                Err(ParseAnimationError::NonSupportedFps { fps })?;
+            }
+            let anim = convert_animation::<T>(&parts, animation, cell_map_names)?;
+            animations.insert(T::AnimationKey::from_str(animation.name())?, anim);
         }
-        log::info!("convert animation start: {}", animation.name());
-        let anim = convert_animation::<T>(&parts, animation, cell_map_names)?;
-        animations.insert(T::AnimationKey::from_str(animation.name())?, anim);
     }
 
-    Ok(pack::PackBuilder::new(parts, animations).build())
+    Ok(pack::PackBuilder::new(parts, animations, setup).build())
 }
 
 fn convert_part<T>(
@@ -152,6 +159,7 @@ where
         sprite_studio::PartType::Joint => PartType::Joint,
         sprite_studio::PartType::Armature => PartType::Armature,
         sprite_studio::PartType::Effect => PartType::Effect,
+        sprite_studio::PartType::Mask => PartType::Mask,
     };
 
     let builder = part::PartBuilder::new(part.name(), part_type);
@@ -212,9 +220,6 @@ where
     // パーツごとにアニメーションキーフレームをまとめる
     // サポートしてるFPSか
     let fps = animation.setting().fps();
-    if SUPPORTED_FPS.contains(&fps) == false {
-        return Err(ParseAnimationError::NonSupportedFps { fps });
-    }
 
     let mut builder = animation::AnimationBuilder::new(
         parts.len(),
@@ -307,7 +312,7 @@ fn convert_key_value<U: serde::de::DeserializeOwned>(
                 Err(ParseAnimationError::ConflictPositionZ)?;
             } else {
                 let prio = convert_float(key)?;
-                builder.add_pos_z(part_id, frame, interpolation, -prio);
+                builder.add_pos_z(part_id, frame, interpolation, prio);
                 *position_z_type = Some(PositionZType::Priority);
             }
         }
